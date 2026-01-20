@@ -12,13 +12,18 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import rateLimit from "express-rate-limit";
+import crypto from "crypto";
+
 import cron from "node-cron";
-import { initPool, testDB, pool } from "./db.js";
+import { initPool, pool, testDB } from "./db.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+// Initialize DB
+// DB Init handled in startServer
 
 // Middleware: Authenticate JWT
 const authenticate = (req, res, next) => {
@@ -40,24 +45,28 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Rate Limiter
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 login requests per windowMs
+  message: "Too many login attempts from this IP, please try again after 15 minutes"
+});
 
-
-// AUTH: Register
-app.post("/auth/register", async (req, res) => {
+// AUTH: Register (ADMIN ONLY or DISABLED for public)
+app.post("/auth/register", authenticate, requireAdmin, async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    console.log("SIGNUP REQUEST:", email);
+    // Strong Password Check
+    if (password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters" });
+    }
 
     const hash = await bcrypt.hash(password, 10);
-
     const result = await pool.query(
       "INSERT INTO users (name, email, password, phone) VALUES ($1,$2,$3,$4) RETURNING id, email",
       [name, email, hash, phone]
     );
-
-    console.log("USER INSERTED:", result.rows[0]);
-
     res.status(201).json({ message: "User created" });
   } catch (err) {
     console.error("SIGNUP ERROR:", err.message);
@@ -65,38 +74,85 @@ app.post("/auth/register", async (req, res) => {
   }
 });
 
-// AUTH: Login
-app.post("/auth/login", async (req, res) => {
+// AUTH: Login with Rate Limit
+app.post("/auth/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
+    const result = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
 
-    const result = await pool.query(
-      "SELECT * FROM users WHERE email=$1",
-      [email]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
+    if (result.rowCount === 0) return res.status(401).json({ error: "Invalid email or password" });
 
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: "Invalid email or password" });
 
-    if (!valid) {
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
+    if (!user.active) return res.status(403).json({ error: "Account is frozen. Contact admin." });
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET);
+    res.json({ token, role: user.role, name: user.name, id: user.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AUTH: Forgot Password
+app.post("/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await pool.query("SELECT id FROM users WHERE email=$1", [email]);
+    if (user.rowCount === 0) return res.json({ message: "If email exists, reset link sent." });
+
+    const token = crypto.randomBytes(20).toString('hex');
+    const expires = new Date(Date.now() + 3600000); // 1 hour
+
+    await pool.query("UPDATE users SET reset_token=$1, reset_expires=$2 WHERE id=$3", [token, expires, user.rows[0].id]);
+
+    // Send Email (Using existing nodemailer setup if available, or just log for now if not fully configured)
+    // NOTE: In production, use real domain.
+    const link = `http://localhost:3000/reset-password/${token}`;
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Password Reset Request",
+      text: `Click to reset: ${link}`
+    });
+
+    res.json({ message: "If email exists, reset link sent." });
+  } catch (err) {
+    // secure error response
+    res.json({ message: "If email exists, reset link sent." });
+    console.error("Forgot PW Error:", err);
+  }
+});
+
+// AUTH: Reset Password
+app.post("/auth/reset-password/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (password.length < 8) return res.status(400).json({ error: "Password must be > 8 chars" });
+
+    const user = await pool.query(
+      "SELECT id FROM users WHERE reset_token=$1 AND reset_expires > NOW()",
+      [token]
     );
 
-    res.json({
-      token,
-      role: user.role,
-      name: user.name,
-      id: user.id
-    });
+    if (user.rowCount === 0) return res.status(400).json({ error: "Invalid or expired token" });
+
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query(
+      "UPDATE users SET password=$1, reset_token=NULL, reset_expires=NULL WHERE id=$2",
+      [hash, user.rows[0].id]
+    );
+
+    res.json({ message: "Password updated. Login now." });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -334,13 +390,13 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
     const EMAIL_PASS = process.env.EMAIL_PASS;
 
     // 1. Generate Plan with Gemini (Request JSON)
-    const prompt = `Create a 7-day ${diet} Indian meal plan for ${name} (Weight: ${weight}kg, Goal: ${goal}). 
-    Allergies: ${allergies || "None"}.
+    const prompt = `Create a 7 - day ${diet} Indian meal plan for ${name}(Weight: ${weight}kg, Goal: ${goal}).
+      Allergies: ${allergies || "None"}.
     Response MUST be a raw JSON Array with no markdown formatting.
-    Format:
+      Format:
     [
-      { 
-        "day": "Mon", 
+      {
+        "day": "Mon",
         "breakfast": "...", "calories_breakfast": "150 kcal",
         "lunch": "...", "calories_lunch": "300 kcal",
         "snack": "...", "calories_snack": "100 kcal",
@@ -662,7 +718,8 @@ app.get("/health", (req, res) => {
 // DB init (ONLY ONCE)
 async function startServer() {
   try {
-    const pool = initPool();
+    initPool();
+    // pool is imported from db.js, initPool sets it.
     await testDB();
     console.log("PostgreSQL connected ✅");
 
@@ -685,8 +742,9 @@ async function startServer() {
       console.log("👑 Admin user verified");
     }
 
-    app.listen(5000, () => {
-      console.log("🚀 Server running on http://localhost:5000");
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
   } catch (err) {
     console.error("DB init error:", err.message);

@@ -4,10 +4,14 @@ const { Pool } = pkg;
 export let pool;
 
 export function initPool() {
-  console.log("Initializing database connection with:", process.env.DATABASE_URL);
+  const isProd = process.env.NODE_ENV === "production";
+  const connectionString = isProd ? process.env.DATABASE_URL_PROD : process.env.DATABASE_URL;
+
+  console.log(`Initializing database connection (${isProd ? "PROD" : "DEV"})...`);
+
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: false
+    connectionString,
+    ssl: isProd ? { rejectUnauthorized: false } : false
   });
 
   pool.on('error', (err) => {
