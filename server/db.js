@@ -43,7 +43,9 @@ export async function testDB() {
     `);
     console.log("✅ DB Schema verified");
   } catch (err) {
-    console.error("❌ DB query error:", err.message);
+  } catch (err) {
+    console.error("❌ DB query error:", err);
+    console.error("Connection String defined:", !!pool.options.connectionString);
     throw err;
   }
 }
