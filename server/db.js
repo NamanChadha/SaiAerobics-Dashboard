@@ -5,7 +5,7 @@ export let pool;
 
 export function initPool() {
   const isProd = process.env.NODE_ENV === "production";
-  const connectionString = isProd ? process.env.DATABASE_URL_PROD : process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL;
 
   console.log(`Initializing database connection (${isProd ? "PROD" : "DEV"})...`);
 
