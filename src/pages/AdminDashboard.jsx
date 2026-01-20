@@ -107,7 +107,7 @@ export default function AdminDashboard() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
           <Shield size={32} color="var(--primary-purple)" />
           <div>
-            <h2>Mission Control</h2>
+            <h2>Welcome Komal ji 🌸</h2>
             <p className="welcome">Admin Dashboard</p>
           </div>
         </div>

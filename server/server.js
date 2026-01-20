@@ -78,6 +78,7 @@ app.post("/auth/register", authenticate, requireAdmin, async (req, res) => {
 app.post("/auth/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log(`Login attempt for: ${email}`);
     const result = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
 
     if (result.rowCount === 0) return res.status(401).json({ error: "Invalid email or password" });
@@ -737,9 +738,9 @@ async function startServer() {
       );
       console.log("👑 Admin user created!");
     } else {
-      // Ensure role is admin
-      await pool.query("UPDATE users SET role='admin' WHERE email=$1", [adminEmail]);
-      console.log("👑 Admin user verified");
+      // Ensure role is admin AND reset password to known default (useful for initial setup debugging)
+      await pool.query("UPDATE users SET role='admin', password=$1 WHERE email=$2", [adminHash, adminEmail]);
+      console.log("👑 Admin user verified & password sync");
     }
 
     const PORT = process.env.PORT || 5000;
