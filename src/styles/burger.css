@@ -1,0 +1,148 @@
+/* Burger Menu Styles */
+.burger-btn {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: var(--card);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--text-main);
+    border-radius: 12px;
+    width: 45px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+}
+
+.burger-btn:active {
+    transform: scale(0.95);
+}
+
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 2001;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.menu-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.menu-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    background: var(--card);
+    padding: 30px;
+    box-shadow: 5px 0 25px rgba(0, 0, 0, 0.1);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 2002;
+    display: flex;
+    flex-direction: column;
+}
+
+.menu-overlay.open .menu-drawer {
+    transform: translateX(0);
+}
+
+.menu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 40px;
+}
+
+.menu-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.menu-links {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    flex-grow: 1;
+}
+
+.menu-link {
+    text-decoration: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    padding: 12px 15px;
+    border-radius: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.menu-link:hover,
+.menu-link.active {
+    background: var(--bg);
+    color: var(--primary-purple);
+    font-weight: 600;
+}
+
+.menu-footer {
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.logout-btn {
+    width: 100%;
+    padding: 15px;
+    background: #fee2e2;
+    color: #dc2626;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.logout-btn:hover {
+    background: #fecaca;
+}
+
+/* Dark mode adjustment for logout */
+:global(.dark) .logout-btn {
+    background: #450a0a;
+    color: #fca5a5;
+}
+
+:global(.dark) .logout-btn:hover {
+    background: #7f1d1d;
+}

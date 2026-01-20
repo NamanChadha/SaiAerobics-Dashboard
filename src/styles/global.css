@@ -1,0 +1,42 @@
+:root {
+  --primary-purple: #7c6cf2;
+  --primary-purple-light: #9a8cff;
+  --accent-green: #a6e86c;
+  --bg: #f5f6fb;
+  --card: #ffffff;
+  --text-main: #1f2937;
+  --text-muted: #6b7280;
+  --radius-lg: 20px;
+  --radius-md: 16px;
+}
+
+.dark {
+  --bg: #0f172a;
+  --card: #1e293b;
+  --text-main: #f8fafc;
+  --text-muted: #cbd5e1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  /* App-like feel: Disable text selection / cursor everywhere except inputs */
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
+}

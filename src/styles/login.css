@@ -1,0 +1,51 @@
+.login-screen {
+  min-height: 100vh;
+  background: linear-gradient(
+    180deg,
+    var(--primary-purple),
+    var(--primary-purple-light)
+  );
+  padding: 24px;
+  text-align: center;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-illustration {
+  width: 100%;
+  max-width: 300px;
+  max-height: 300px;
+  margin: 40px auto 20px;
+  object-fit: contain;
+}
+
+.login-screen h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 40px;
+  max-width: 420px;
+}
+
+.google-btn,
+.apple-btn {
+  width: 100%;
+  max-width: 420px;
+  height: 56px;
+  font-size: 18px;
+  border-radius: 30px;
+  border: none;
+  margin-bottom: 14px;
+}
+
+.google-btn {
+  background: var(--accent-green);
+  color: #1f2937;
+}
+
+.apple-btn {
+  background: #111827;
+  color: white;
+}

@@ -1,0 +1,29 @@
+.progress-wrapper {
+  position: relative;
+  text-align: center;
+}
+
+svg {
+  width: 200px;
+}
+
+.bg-arc {
+  fill: none;
+  stroke: #e5e7eb;
+  stroke-width: 10;
+}
+
+.fg-arc {
+  fill: none;
+  stroke: var(--primary-purple);
+  stroke-width: 10;
+}
+
+.progress-wrapper span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -20%);
+  font-size: 28px;
+  font-weight: bold;
+}
