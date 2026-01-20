@@ -19,6 +19,7 @@ import cron from "node-cron";
 import { initPool, pool, testDB } from "./db.js";
 
 const app = express();
+app.set('trust proxy', 1); // Trust Render's proxy for rate limiting
 
 app.use(cors());
 app.use(express.json());
@@ -52,8 +53,8 @@ const loginLimiter = rateLimit({
   message: "Too many login attempts from this IP, please try again after 15 minutes"
 });
 
-// AUTH: Register (ADMIN ONLY or DISABLED for public)
-app.post("/auth/register", authenticate, requireAdmin, async (req, res) => {
+// AUTH: Register (Allowed for public signup)
+app.post("/auth/register", async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
@@ -70,7 +71,10 @@ app.post("/auth/register", authenticate, requireAdmin, async (req, res) => {
     res.status(201).json({ message: "User created" });
   } catch (err) {
     console.error("SIGNUP ERROR:", err.message);
-    res.status(500).json({ error: "Signup failed" });
+    if (err.code === "23505") {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+    res.status(500).json({ error: "Signup failed. Please try again." });
   }
 });
 
