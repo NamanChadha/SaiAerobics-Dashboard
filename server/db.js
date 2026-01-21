@@ -76,6 +76,10 @@ export async function testDB() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS membership_start DATE DEFAULT CURRENT_DATE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS tier VARCHAR DEFAULT 'silver';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS batch_time VARCHAR DEFAULT 'Morning';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'UNPAID';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_id VARCHAR(100);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS payment_date TIMESTAMP;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMP;
     `);
     console.log("✅ DB Schema verified");
   } catch (err) {

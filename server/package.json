@@ -21,6 +21,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.12",
     "pg": "^8.10.0",
+    "razorpay": "^2.9.6",
     "twilio": "^5.11.2"
   },
   "devDependencies": {

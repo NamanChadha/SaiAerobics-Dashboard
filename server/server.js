@@ -23,6 +23,14 @@ app.set('trust proxy', 1); // Trust Render's proxy for rate limiting
 
 app.use(cors());
 app.use(express.json());
+
+import Razorpay from "razorpay";
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID || "rzp_test_PLACEHOLDER",
+  key_secret: process.env.RAZORPAY_KEY_SECRET || "PLACEHOLDER_SECRET"
+});
+
 // Initialize DB
 // DB Init handled in startServer
 
@@ -167,7 +175,7 @@ app.post("/auth/reset-password/:token", async (req, res) => {
 app.get("/profile", authenticate, async (req, res) => {
   try {
     const userRes = await pool.query(
-      "SELECT name, email, phone, height, tier, batch_time, membership_end FROM users WHERE id=$1",
+      "SELECT name, email, phone, height, tier, batch_time, membership_end, payment_status, expiry_date FROM users WHERE id=$1",
       [req.user.id]
     );
 
@@ -179,7 +187,9 @@ app.get("/profile", authenticate, async (req, res) => {
 
     const profile = {
       ...userRes.rows[0],
-      weight: weightRes.rows[0]?.weight || 0
+      weight: weightRes.rows[0]?.weight || 0,
+      payment_status: userRes.rows[0].payment_status,
+      expiry_date: userRes.rows[0].expiry_date
     };
     res.json(profile);
   } catch (err) {
@@ -446,6 +456,62 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
   }
 });
 
+// PAYMENT: Create Order (Razorpay)
+app.post("/payment/order", authenticate, async (req, res) => {
+  try {
+    const options = {
+      amount: 500 * 100, // ₹500 in paise
+      currency: "INR",
+      receipt: "receipt_" + req.user.id,
+      notes: { userId: req.user.id }
+    };
+
+    const order = await razorpay.orders.create(options);
+    res.json(order);
+  } catch (err) {
+    console.error("Payment Order Error:", err);
+    res.status(500).json({ error: "Failed to create payment order" });
+  }
+});
+
+// PAYMENT: Verify & Update Subscription
+app.post("/payment/verify", authenticate, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature === razorpay_signature) {
+      // Payment Success!
+      // Update User DB
+      const today = new Date();
+      const expiry = new Date();
+      expiry.setDate(today.getDate() + 30); // 30 Days Validity
+
+      await pool.query(
+        `UPDATE users SET 
+          payment_status='PAID', 
+          payment_id=$1, 
+          payment_date=$2, 
+          expiry_date=$3 
+         WHERE id=$4`,
+        [razorpay_payment_id, today, expiry, req.user.id]
+      );
+
+      res.json({ success: true, message: "Payment Verified! Subscription Unlocked." });
+    } else {
+      res.status(400).json({ error: "Invalid Signature. Payment Verification Failed." });
+    }
+  } catch (err) {
+    console.error("Payment Verify Error:", err);
+    res.status(500).json({ error: "Verification Failed" });
+  }
+});
+
 // EMAIL: Share Plan
 app.post("/share/email", authenticate, async (req, res) => {
   try {
@@ -573,11 +639,12 @@ app.get("/admin/stats", authenticate, requireAdmin, async (req, res) => {
 });
 
 // ADMIN: Get all users (Table View)
+// ADMIN: Get all users (Table View)
 app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
   try {
     // Basic user info + simplified streak/last activity integration
     const query = `
-      SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, s.last_logged, s.current_streak
+      SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, u.tier, u.height, s.last_logged, s.current_streak
       FROM users u
       LEFT JOIN streaks s ON u.id = s.user_id
       WHERE u.role = 'member'
@@ -585,6 +652,22 @@ app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
     `;
     const result = await pool.query(query);
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ADMIN: Update User Details
+app.post("/admin/users/:id/update", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, phone, email, height, tier } = req.body;
+
+    await pool.query(
+      "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5 WHERE id=$6",
+      [name, phone, email, height, tier, id]
+    );
+    res.json({ message: "User updated successfully" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -675,21 +758,7 @@ app.get("/admin/graphs", authenticate, requireAdmin, async (req, res) => {
   }
 });
 
-// ADMIN: Update User Details
-app.post("/admin/users/:id/update", authenticate, requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, phone, email, height, weight, tier } = req.body;
 
-    await pool.query(
-      "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, weight=$5, tier=$6 WHERE id=$7",
-      [name, phone, email, height, weight, tier, id]
-    );
-    res.json({ message: "User updated successfully" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 // ADMIN: Attendance Override
 app.post("/admin/users/:id/attendance", authenticate, requireAdmin, async (req, res) => {
