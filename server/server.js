@@ -112,6 +112,72 @@ app.post("/auth/login", loginLimiter, async (req, res) => {
 app.post("/auth/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
+    const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
+
+    if (user.rowCount === 0) return res.status(404).json({ error: "User not found" });
+
+    // Generate Token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const today = new Date();
+    const expires = new Date(today.getTime() + 3600000); // 1 Hour
+
+    await pool.query(
+      "UPDATE users SET reset_token=$1, reset_expires=$2 WHERE email=$3",
+      [resetToken, expires, email]
+    );
+
+    // Send Email
+    const link = `http://localhost:5173/reset-password/${resetToken}`;
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Password Reset Request",
+      html: `<p>You requested a password reset</p>
+             <p>Click here to reset: <a href="${link}">${link}</a></p>
+             <p>Link expires in 1 hour.</p>`
+    });
+
+    res.json({ message: "Reset link sent to email" });
+  } catch (err) {
+    console.error("Forgot PW Error:", err);
+    res.status(500).json({ error: "Failed to send reset email" });
+  }
+});
+
+// AUTH: Reset Password
+app.post("/auth/reset-password", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    const now = new Date();
+
+    const user = await pool.query(
+      "SELECT * FROM users WHERE reset_token=$1 AND reset_expires > $2",
+      [token, now]
+    );
+
+    if (user.rowCount === 0) return res.status(400).json({ error: "Invalid or expired token" });
+
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query(
+      "UPDATE users SET password=$1, reset_token=NULL, reset_expires=NULL WHERE id=$2",
+      [hash, user.rows[0].id]
+    );
+
+    res.json({ message: "Password updated successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AUTH: Forgot Password
+app.post("/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
     const user = await pool.query("SELECT id FROM users WHERE email=$1", [email]);
     if (user.rowCount === 0) return res.json({ message: "If email exists, reset link sent." });
 

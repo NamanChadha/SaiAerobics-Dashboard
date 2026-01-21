@@ -42,10 +42,11 @@ export default function Nutrition() {
       setProfileLoading(true);
       const user = await getUserProfile();
 
+      const isPremium = ["Gold", "Platinum"].includes(user.tier);
       const isPaid = user.payment_status === "PAID";
       const notExpired = user.expiry_date && new Date(user.expiry_date) > new Date();
 
-      if (isPaid && notExpired) {
+      if (isPremium || (isPaid && notExpired)) {
         setLocked(false);
       } else {
         setLocked(true);
@@ -227,7 +228,7 @@ export default function Nutrition() {
               <p style={{ color: "#666", marginBottom: "24px", lineHeight: "1.5" }}>
                 Your personalized meal plan is locked. Please subscribe to unlock AI-powered nutrition plans.
               </p>
-              <div style={{ fontSize: "2rem", fontWeight: "bold", marginBottom: "20px" }}>
+              <div style={{ fontSize: "2rem", fontWeight: "bold", marginBottom: "20px", color: "#333" }}>
                 ₹500<span style={{ fontSize: "1rem", fontWeight: "normal", color: "#888" }}>/month</span>
               </div>
               <button
