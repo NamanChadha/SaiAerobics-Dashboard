@@ -86,6 +86,12 @@ export default function Login() {
           </button>
         </div>
 
+        <div style={{ textAlign: "right", marginTop: "-10px", marginBottom: "15px" }}>
+          <span onClick={() => navigate("/forgot-password")} style={{ color: "#666", fontSize: "0.85rem", cursor: "pointer", fontWeight: "500" }}>
+            Forgot Password?
+          </span>
+        </div>
+
         {error && <p className="error">{error}</p>}
 
         <button className="primary-btn" onClick={handleLogin} disabled={loading}>

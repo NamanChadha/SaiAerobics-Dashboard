@@ -8,7 +8,7 @@ export default function BurgerMenu() {
     const navigate = useNavigate();
 
     // Hide menu on auth pages
-    const hideMenu = ["/", "/signup"].includes(location.pathname);
+    const hideMenu = ["/", "/login", "/signup", "/forgot-password"].includes(location.pathname) || location.pathname.startsWith("/reset-password");
     if (hideMenu) return null;
 
     function handleLogout() {
