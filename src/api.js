@@ -167,3 +167,23 @@ export async function overrideAttendance(id, date, action) {
   });
   return res.json();
 }
+
+export async function createOrder() {
+  const res = await fetch(`${API_URL}/payment/order`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+  });
+  return res.json();
+}
+
+export async function verifyPayment(data) {
+  const res = await fetch(`${API_URL}/payment/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`
+    },
+    body: JSON.stringify(data)
+  });
+  return res.json();
+}
