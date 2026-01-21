@@ -131,6 +131,13 @@ app.post("/auth/forgot-password", async (req, res) => {
 
     // Send Email
     const link = `http://localhost:5173/reset-password/${resetToken}`;
+
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.log("⚠️ Email credentials missing in .env. Mocking email send.");
+      console.log("🔗 Reset Link:", link);
+      return res.json({ message: "Reset link generated (Check Server Console)" });
+    }
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
