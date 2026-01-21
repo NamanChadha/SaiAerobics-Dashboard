@@ -65,6 +65,7 @@ const loginLimiter = rateLimit({
 app.post("/auth/register", async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
+    const lowerEmail = email.toLowerCase().trim();
 
     // Strong Password Check
     if (password.length < 8) {
@@ -74,7 +75,7 @@ app.post("/auth/register", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       "INSERT INTO users (name, email, password, phone) VALUES ($1,$2,$3,$4) RETURNING id, email",
-      [name, email, hash, phone]
+      [name, lowerEmail, hash, phone]
     );
     res.status(201).json({ message: "User created" });
   } catch (err) {
@@ -90,8 +91,9 @@ app.post("/auth/register", async (req, res) => {
 app.post("/auth/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(`Login attempt for: ${email}`);
-    const result = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
+    const lowerEmail = email.toLowerCase().trim();
+    console.log(`Login attempt for: ${lowerEmail}`);
+    const result = await pool.query("SELECT * FROM users WHERE LOWER(email)=$1", [lowerEmail]);
 
     if (result.rowCount === 0) return res.status(401).json({ error: "Invalid email or password" });
 
@@ -112,7 +114,8 @@ app.post("/auth/login", loginLimiter, async (req, res) => {
 app.post("/auth/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
+    const lowerEmail = email.toLowerCase().trim();
+    const user = await pool.query("SELECT * FROM users WHERE LOWER(email)=$1", [lowerEmail]);
 
     if (user.rowCount === 0) return res.status(404).json({ error: "User not found" });
 
@@ -122,8 +125,8 @@ app.post("/auth/forgot-password", async (req, res) => {
     const expires = new Date(today.getTime() + 3600000); // 1 Hour
 
     await pool.query(
-      "UPDATE users SET reset_token=$1, reset_expires=$2 WHERE email=$3",
-      [resetToken, expires, email]
+      "UPDATE users SET reset_token=$1, reset_expires=$2 WHERE LOWER(email)=$3",
+      [resetToken, expires, lowerEmail]
     );
 
     // Send Email
@@ -135,7 +138,7 @@ app.post("/auth/forgot-password", async (req, res) => {
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: email,
+      to: lowerEmail,
       subject: "Password Reset Request",
       html: `<p>You requested a password reset</p>
              <p>Click here to reset: <a href="${link}">${link}</a></p>
