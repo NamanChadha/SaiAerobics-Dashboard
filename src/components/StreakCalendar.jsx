@@ -57,6 +57,15 @@ export default function StreakCalendar({ streakDates }) {
                 <div className="cal-head">S</div>
                 {grids}
             </div>
+
+            <div className="cal-legend">
+                <div className="legend-item">
+                    <span>🔥</span> <span>Present</span>
+                </div>
+                <div className="legend-item">
+                    <span>☹️</span> <span>Missed</span>
+                </div>
+            </div>
         </div>
     );
 }

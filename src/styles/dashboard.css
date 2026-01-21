@@ -874,3 +874,25 @@ body {
     font-size: 2.2rem;
   }
 }
+
+/* Calendar specific styles */
+.cal-day.missed {
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+  color: #c62828;
+}
+
+.cal-legend {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
