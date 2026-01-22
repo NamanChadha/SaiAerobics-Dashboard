@@ -19,7 +19,7 @@ export default function ForgotPassword() {
         try {
             const res = await forgotPassword(email);
             if (res.error) throw new Error(res.error);
-            setMessage("Check your email for the reset link!");
+            setMessage(res.message || "Check your email for the reset link!");
         } catch (err) {
             setError(err.message);
         } finally {
