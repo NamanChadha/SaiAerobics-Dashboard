@@ -155,7 +155,9 @@ app.post("/auth/forgot-password", async (req, res) => {
       res.json({ message: "Reset link sent to email" });
     } catch (emailErr) {
       console.error("Nodemailer Error:", emailErr);
-      res.status(500).json({ error: "Email service failed. Check server logs." });
+      console.log("⚠️ Email failed. Defaulting to Mock Link for Dev.");
+      console.log("🔗 Reset Link:", link);
+      res.json({ message: "Email failed (Check Server Console for Link)" });
     }
 
   } catch (err) {

@@ -896,3 +896,12 @@ body {
   align-items: center;
   gap: 5px;
 }
+@keyframes pulse-glow {
+  0% { text-shadow: 0 0 10px rgba(255, 235, 59, 0.5); transform: scale(1); }
+  50% { text-shadow: 0 0 30px rgba(255, 235, 59, 1); transform: scale(1.05); }
+  100% { text-shadow: 0 0 10px rgba(255, 235, 59, 0.5); transform: scale(1); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s infinite ease-in-out;
+}
