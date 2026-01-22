@@ -11,6 +11,7 @@ export default function Home() {
             <section className="hero-section" style={{ backgroundImage: `url(${heroBg})` }}>
                 <div className="hero-overlay">
                     <div className="hero-content fade-in">
+                        <h1 className="brand-title" style={{ fontSize: "4rem", color: "#ffeb3b", marginBottom: "10px", textShadow: "0px 0px 20px rgba(255, 235, 59, 0.8)" }}>Sai Aerobics</h1>
                         <h1 className="hero-title">TRANSFORM<br />YOUR BODY & MIND</h1>
                         <p className="hero-subtitle">Join the most energetic aerobics community designed exclusively for women.</p>
 
