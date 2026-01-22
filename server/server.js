@@ -129,13 +129,15 @@ app.post("/auth/forgot-password", async (req, res) => {
       [resetToken, expires, lowerEmail]
     );
 
-    // Send Email
-    const link = `http://localhost:5173/reset-password/${resetToken}`;
+    // Use FRONTEND_URL for production, fallback to localhost for dev
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const link = `${frontendUrl}/reset-password/${resetToken}`;
 
+    // If email credentials are missing, return the link directly for testing
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log("⚠️ Email credentials missing in .env. Mocking email send.");
+      console.log("⚠️ Email credentials missing. Returning debug link.");
       console.log("🔗 Reset Link:", link);
-      return res.json({ message: "Dev Mode: Checkout Server Console for Reset Link" });
+      return res.json({ message: "Dev Mode: Use the link below to reset.", debug_link: link });
     }
 
     try {
@@ -152,12 +154,12 @@ app.post("/auth/forgot-password", async (req, res) => {
                  <p>Click here to reset: <a href="${link}">${link}</a></p>
                  <p>Link expires in 1 hour.</p>`
       });
-      res.json({ message: "Reset link sent to email" });
+      res.json({ message: "Reset link sent to your email!" });
     } catch (emailErr) {
       console.error("Nodemailer Error:", emailErr);
-      console.log("⚠️ Email failed. Defaulting to Mock Link for Dev.");
-      console.log("🔗 Reset Link:", link);
-      res.json({ message: "Email failed (Check Server Console for Link)" });
+      console.log("🔗 Fallback Reset Link:", link);
+      // Return link in response if email fails (for testing)
+      res.json({ message: "Email failed. Use this link:", debug_link: link });
     }
 
   } catch (err) {
@@ -190,6 +192,47 @@ app.post("/auth/reset-password", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// AUTH: Google Login/Signup (Sync Firebase user)
+app.post("/auth/google", async (req, res) => {
+  try {
+    const { email, name, uid } = req.body;
+    const lowerEmail = email.toLowerCase().trim();
+
+    // Check if user exists
+    let user = await pool.query("SELECT * FROM users WHERE LOWER(email)=$1", [lowerEmail]);
+
+    if (user.rowCount === 0) {
+      // Create new user with random password (they'll use Google to login)
+      const randomPassword = crypto.randomBytes(16).toString("hex");
+      const hash = await bcrypt.hash(randomPassword, 10);
+
+      const result = await pool.query(
+        "INSERT INTO users (name, email, password, google_uid) VALUES ($1,$2,$3,$4) RETURNING id, email, role, name",
+        [name, lowerEmail, hash, uid]
+      );
+      user = { rows: [result.rows[0]], rowCount: 1 };
+    } else {
+      // Update google_uid if not set
+      if (!user.rows[0].google_uid) {
+        await pool.query("UPDATE users SET google_uid=$1 WHERE id=$2", [uid, user.rows[0].id]);
+      }
+    }
+
+    const userData = user.rows[0];
+
+    if (!userData.active) {
+      return res.status(403).json({ error: "Account is frozen. Contact admin." });
+    }
+
+    const token = jwt.sign({ id: userData.id, role: userData.role || "member" }, process.env.JWT_SECRET);
+    res.json({ token, role: userData.role || "member", name: userData.name, id: userData.id });
+  } catch (err) {
+    console.error("Google Auth Error:", err);
+    res.status(500).json({ error: "Google login failed. Please try again." });
+  }
+});
+
 
 
 

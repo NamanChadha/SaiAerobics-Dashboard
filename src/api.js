@@ -205,3 +205,14 @@ export async function resetPassword(token, password) {
   });
   return res.json();
 }
+
+// Google Auth - sync Firebase user with backend
+export async function googleAuth(userData) {
+  const res = await fetch(`${API_URL}/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(userData)
+  });
+  return res.json();
+}
+
