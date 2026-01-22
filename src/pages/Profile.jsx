@@ -1,6 +1,7 @@
 import "../styles/dashboard.css";
 import { useEffect, useState } from "react";
 import { getUserProfile, updateUserProfile } from "../api";
+import DarkModeToggle from "../components/DarkModeToggle";
 
 export default function Profile() {
     const [formData, setFormData] = useState({
@@ -77,6 +78,7 @@ export default function Profile() {
         <div className="dash">
             <header className="dash-header" style={{ justifyContent: 'center' }}>
                 <h2>My Profile 👤</h2>
+                <DarkModeToggle />
             </header>
 
             <div className="profile-card" style={{ maxWidth: "500px", margin: "0 auto" }}>

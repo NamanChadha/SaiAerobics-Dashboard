@@ -1,12 +1,7 @@
 import { useState, useEffect } from "react";
 
-import { useLocation } from "react-router-dom";
-
 export default function DarkModeToggle() {
-    const location = useLocation();
     const [dark, setDark] = useState(true);
-
-    if (location.pathname === "/") return null;
 
     useEffect(() => {
         if (dark) {

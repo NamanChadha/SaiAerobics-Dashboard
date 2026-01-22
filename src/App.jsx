@@ -15,7 +15,7 @@ import BurgerMenu from "./components/BurgerMenu";
 export default function App() {
   return (
     <BrowserRouter>
-      <DarkModeToggle />
+
       <BurgerMenu />
       <Routes>
         <Route path="/" element={<Home />} />

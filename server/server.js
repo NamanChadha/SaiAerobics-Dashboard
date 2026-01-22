@@ -138,24 +138,29 @@ app.post("/auth/forgot-password", async (req, res) => {
       return res.json({ message: "Dev Mode: Checkout Server Console for Reset Link" });
     }
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-    });
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+      });
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: lowerEmail,
-      subject: "Password Reset Request",
-      html: `<p>You requested a password reset</p>
-             <p>Click here to reset: <a href="${link}">${link}</a></p>
-             <p>Link expires in 1 hour.</p>`
-    });
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: lowerEmail,
+        subject: "Password Reset Request",
+        html: `<p>You requested a password reset</p>
+                 <p>Click here to reset: <a href="${link}">${link}</a></p>
+                 <p>Link expires in 1 hour.</p>`
+      });
+      res.json({ message: "Reset link sent to email" });
+    } catch (emailErr) {
+      console.error("Nodemailer Error:", emailErr);
+      res.status(500).json({ error: "Email service failed. Check server logs." });
+    }
 
-    res.json({ message: "Reset link sent to email" });
   } catch (err) {
-    console.error("Forgot PW Error:", err);
-    res.status(500).json({ error: "Failed to send reset email" });
+    console.error("Forgot PW Critical Error:", err);
+    res.status(500).json({ error: "Internal Server Error during password reset" });
   }
 });
 
