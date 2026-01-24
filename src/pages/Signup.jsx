@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
 import { register } from "../api";
+import logoPlaceholder from "../assets/logo_placeholder.svg";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -36,17 +37,16 @@ export default function Signup() {
       <div className={`auth-card ${error ? "shake" : ""}`}>
         {/* Brand Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px" }}>
-          <div style={{
-            width: "45px",
-            height: "45px",
-            borderRadius: "50%",
-            background: "var(--primary, #E85D75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }}>
-            <span style={{ fontSize: "1.3rem" }}>💪</span>
-          </div>
+          <img
+            src={logoPlaceholder}
+            alt="Sai Aerobics Logo"
+            style={{
+              width: "45px",
+              height: "45px",
+              borderRadius: "50%",
+              objectFit: "cover"
+            }}
+          />
           <span style={{ fontSize: "1.2rem", fontWeight: "700", color: "var(--text-main)" }}>Sai Aerobics</span>
         </div>
 

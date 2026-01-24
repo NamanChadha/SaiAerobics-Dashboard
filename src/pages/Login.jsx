@@ -4,6 +4,7 @@ import "../styles/auth.css";
 import { login, googleAuth } from "../api";
 import { auth, googleProvider } from "../firebase";
 import { signInWithPopup } from "firebase/auth";
+import logoPlaceholder from "../assets/logo_placeholder.svg";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -87,17 +88,16 @@ export default function Login() {
       <div className={`auth-card ${error ? "shake" : ""}`}>
         {/* Brand Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px" }}>
-          <div style={{
-            width: "45px",
-            height: "45px",
-            borderRadius: "50%",
-            background: "var(--primary, #E85D75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center"
-          }}>
-            <span style={{ fontSize: "1.3rem" }}>💪</span>
-          </div>
+          <img
+            src={logoPlaceholder}
+            alt="Sai Aerobics Logo"
+            style={{
+              width: "45px",
+              height: "45px",
+              borderRadius: "50%",
+              objectFit: "cover"
+            }}
+          />
           <span style={{ fontSize: "1.2rem", fontWeight: "700", color: "var(--text-main)" }}>Sai Aerobics</span>
         </div>
 

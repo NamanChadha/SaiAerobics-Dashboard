@@ -7,6 +7,7 @@ import MembershipCard from "../components/MembershipCard";
 import StreakCalendar from "../components/StreakCalendar";
 import ProgressChart from "../components/ProgressChart";
 import NutritionModal from "../components/NutritionModal";
+import logoPlaceholder from "../assets/logo_placeholder.svg";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -58,18 +59,17 @@ export default function Dashboard() {
         marginTop: "-50px",
         gap: "10px"
       }}>
-        <div style={{
-          width: "50px",
-          height: "50px",
-          borderRadius: "50%",
-          background: "var(--primary)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0 4px 15px rgba(232, 93, 117, 0.3)"
-        }}>
-          <span style={{ fontSize: "1.5rem" }}>💪</span>
-        </div>
+        <img
+          src={logoPlaceholder}
+          alt="Sai Aerobics Logo"
+          style={{
+            width: "50px",
+            height: "50px",
+            borderRadius: "50%",
+            objectFit: "cover",
+            boxShadow: "0 4px 15px rgba(232, 93, 117, 0.3)"
+          }}
+        />
         <div style={{ textAlign: "left" }}>
           <span style={{
             fontSize: "1.3rem",
