@@ -1,14 +1,20 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@400;500;600;700&display=swap');
 
 :root {
-  --primary-purple: #6200ea;
-  /* Deep Purple */
-  --primary-purple-light: #a855f7;
-  --bg: #f8fafc;
+  /* UNIFIED DESIGN SYSTEM - Sai Aerobics */
+  --primary: #E85D75;
+  --primary-light: rgba(232, 93, 117, 0.1);
+  --secondary: #F6C1CC;
+  --accent: #7C6CF2;
+  --bg: #FFF7F3;
+  --bg-alt: #FEF2EE;
   --card: #ffffff;
-  --text-main: #1e293b;
-  --text-muted: #64748b;
+  --text-main: #2E2E2E;
+  --text-muted: #6B7280;
   --success: #10b981;
+  /* Legacy aliases */
+  --primary-purple: #E85D75;
+  --primary-purple-light: #F6C1CC;
 }
 
 
@@ -917,10 +923,12 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s infinite ease-in-out;
 }
+
 /* --- Premium Home Page Styles (Cult.fit Style) --- */
 
 .landing-page-premium {
-  background-color: #FFF7F3; /* Warm Off-White */
+  background-color: #FFF7F3;
+  /* Warm Off-White */
   min-height: 100vh;
   font-family: 'Poppins', sans-serif;
   color: #2E2E2E;
@@ -951,7 +959,8 @@ body {
 }
 
 .highlight-text {
-  color: #E85D75; /* Soft Coral */
+  color: #E85D75;
+  /* Soft Coral */
 }
 
 .premium-subtitle {
@@ -1010,7 +1019,8 @@ body {
   max-width: 100%;
   height: auto;
   max-height: 600px;
-  border-radius: 20px; /* If image has hard edges */
+  border-radius: 20px;
+  /* If image has hard edges */
 }
 
 /* Values Section */
@@ -1029,7 +1039,7 @@ body {
   background: white;
   padding: 40px 30px;
   border-radius: 25px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.03);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03);
   text-align: left;
   transition: transform 0.3s ease;
 }
@@ -1113,8 +1123,15 @@ body {
 }
 
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Responsive */
@@ -1124,25 +1141,24 @@ body {
     text-align: center;
     padding-top: 40px;
   }
-  
+
   .premium-title {
     font-size: 2.5rem;
   }
-  
+
   .hero-text-content {
     margin-top: 20px;
   }
-  
+
   .premium-buttons {
     justify-content: center;
   }
-  
+
   .value-card {
     text-align: center;
   }
-  
+
   .hero-img {
     max-height: 350px;
   }
 }
-

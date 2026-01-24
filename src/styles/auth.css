@@ -19,7 +19,7 @@
   background: var(--card);
   font-size: 24px;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease;
 }
 
@@ -38,7 +38,7 @@
   padding: 32px 24px;
   border-radius: 18px;
   text-align: center;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
 }
 
 .auth-card img {
@@ -73,8 +73,8 @@
 
 .auth-card input:focus {
   outline: none;
-  border-color: #7c6cf2;
-  box-shadow: 0 0 0 3px rgba(124, 108, 242, 0.1);
+  border-color: var(--primary, #E85D75);
+  box-shadow: 0 0 0 3px rgba(232, 93, 117, 0.1);
 }
 
 .auth-card input:disabled {
@@ -85,11 +85,11 @@
 .primary-btn {
   width: 100%;
   height: 52px;
-  background: #7c6cf2;
+  background: var(--primary, #E85D75);
   color: white;
   border: none;
-  border-radius: 14px;
-  font-size: 18px;
+  border-radius: 50px;
+  font-size: 16px;
   font-weight: 600;
   margin-top: 10px;
   cursor: pointer;
@@ -97,7 +97,8 @@
 }
 
 .primary-btn:hover:not(:disabled) {
-  box-shadow: 0 10px 20px rgba(124, 108, 242, 0.2);
+  box-shadow: 0 10px 20px rgba(232, 93, 117, 0.25);
+  transform: translateY(-2px);
 }
 
 .primary-btn:active:not(:disabled) {
@@ -112,7 +113,7 @@
 .spinner {
   width: 22px;
   height: 22px;
-  border: 3px solid rgba(255,255,255,0.4);
+  border: 3px solid rgba(255, 255, 255, 0.4);
   border-top: 3px solid white;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -120,7 +121,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .error {
@@ -138,8 +141,15 @@
 }
 
 @keyframes pop {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .shake {
@@ -147,11 +157,25 @@
 }
 
 @keyframes shake {
-  0% { transform: translateX(0); }
-  25% { transform: translateX(-6px); }
-  50% { transform: translateX(6px); }
-  75% { transform: translateX(-6px); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-6px);
+  }
+
+  50% {
+    transform: translateX(6px);
+  }
+
+  75% {
+    transform: translateX(-6px);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
 }
 
 .switch {
@@ -162,7 +186,7 @@
 }
 
 .switch b {
-  color: #7c6cf2;
+  color: var(--primary, #E85D75);
   cursor: pointer;
   font-weight: 600;
 }
@@ -181,6 +205,7 @@
     opacity: 0;
     transform: translateY(14px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

@@ -6,7 +6,6 @@ import WeightModal from "../components/WeightModal";
 import MembershipCard from "../components/MembershipCard";
 import StreakCalendar from "../components/StreakCalendar";
 import ProgressChart from "../components/ProgressChart";
-
 import NutritionModal from "../components/NutritionModal";
 
 export default function Dashboard() {
@@ -15,9 +14,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNutritionModalOpen, setIsNutritionModalOpen] = useState(false);
-
-
-
 
   async function fetchDashboardData() {
     try {
@@ -37,63 +33,60 @@ export default function Dashboard() {
   async function handleAttendance() {
     try {
       await markAttendance();
-      fetchDashboardData(); // Refresh to update calendar and buttons
+      fetchDashboardData();
     } catch (err) {
       alert("Failed to mark attendance");
     }
   }
 
-  // Logout is handled in BurgerMenu
-  /*function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user_name");
-    localStorage.removeItem("user_role");
-    navigate("/");
-  }*/
-
-
-
-  if (loading) return <div className="dash"><p style={{ padding: "80px 20px", color: "#fff", textAlign: "center" }}>Loading Dashboard...</p></div>;
+  if (loading) return <div className="dash"><p style={{ padding: "80px 20px", color: "var(--text-main)", textAlign: "center" }}>Loading Dashboard...</p></div>;
 
   const userName = localStorage.getItem("user_name") || "Member";
-
-  // FIX: Use Local Time for "Today", not UTC (toISOString)
   const todayObj = new Date();
   const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
-
-  // Derived state from data
   const isAttendanceMarked = data?.streakDates?.includes(todayStr);
-
-  // Check if weight is logged today (Use robust backend date_str)
   const isWeightLogged = data?.weights?.some(w => w.date_str === todayStr);
 
   return (
     <div className="dash">
-      {/* Branding - Logo + Text Side-by-Side */}
+      {/* Brand Header - Consistent with Home */}
       <div style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: "15px",
-        marginTop: "-60px",
-        gap: "8px"
+        marginBottom: "20px",
+        marginTop: "-50px",
+        gap: "10px"
       }}>
-        <img
-          src="/logo.png"
-          alt="Sai Aerobics"
-          style={{ width: "60px", height: "60px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.1)" }}
-        />
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: "1" }}>
-          <span style={{ fontSize: "1.2rem", fontWeight: "800", color: "#fff", letterSpacing: "1px" }}>SAI</span>
-          <span style={{ fontSize: "1.2rem", fontWeight: "800", color: "var(--primary-purple)", letterSpacing: "1px" }}>AEROBICS</span>
+        <div style={{
+          width: "50px",
+          height: "50px",
+          borderRadius: "50%",
+          background: "var(--primary)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 4px 15px rgba(232, 93, 117, 0.3)"
+        }}>
+          <span style={{ fontSize: "1.5rem" }}>💪</span>
+        </div>
+        <div style={{ textAlign: "left" }}>
+          <span style={{
+            fontSize: "1.3rem",
+            fontWeight: "700",
+            color: "var(--text-main)",
+            fontFamily: "Poppins, sans-serif",
+            letterSpacing: "0.5px"
+          }}>
+            Sai Aerobics
+          </span>
         </div>
       </div>
 
-      <header className="dash-header">
-
-        <div className="header-text">
-          <p className="welcome">Good Morning 🌸</p>
-          <h2>{userName}</h2>
+      <header className="dash-header" style={{ justifyContent: "center", textAlign: "center" }}>
+        <div>
+          <p className="welcome" style={{ margin: 0 }}>Good to see you 🌸</p>
+          <h2 style={{ margin: "5px 0 0 0", fontSize: "1.4rem" }}>{userName}</h2>
         </div>
       </header>
 
@@ -105,23 +98,27 @@ export default function Dashboard() {
         />
       )}
 
-
-
       {/* Action Buttons */}
-      <div className="log-btn-container" style={{ flexDirection: 'column', gap: '15px' }}>
-
+      <div className="log-btn-container" style={{ flexDirection: 'column', gap: '12px' }}>
         {/* Attendance Button */}
         <button
-          className={`big-log-btn ${isAttendanceMarked ? 'done' : 'urgent'}`}
+          className={`big-log-btn ${isAttendanceMarked ? 'done' : ''}`}
           onClick={handleAttendance}
           disabled={isAttendanceMarked}
+          style={isAttendanceMarked ? {
+            background: "var(--secondary)",
+            color: "var(--text-main)"
+          } : {
+            background: "var(--primary)",
+            color: "white"
+          }}
         >
-          <div className="btn-content" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-            <span className="btn-title" style={{ fontSize: '1rem' }}>
-              {isAttendanceMarked ? "Attendance Marked" : "Mark Attendance"}
-            </span>
-            <span style={{ fontSize: "1.2rem", marginLeft: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <span style={{ fontSize: "1.2rem" }}>
               {isAttendanceMarked ? "✅" : "📍"}
+            </span>
+            <span style={{ fontWeight: '600' }}>
+              {isAttendanceMarked ? "Attendance Marked" : "Mark Attendance"}
             </span>
           </div>
         </button>
@@ -129,21 +126,25 @@ export default function Dashboard() {
         {/* Weight Button */}
         <button
           className={`big-log-btn ${isWeightLogged ? 'done' : ''}`}
-          style={isWeightLogged ? {} : { background: "var(--card)", color: "var(--text-main)", boxShadow: "0 4px 15px rgba(0,0,0,0.05)" }}
           onClick={() => setIsModalOpen(true)}
           disabled={isWeightLogged}
+          style={isWeightLogged ? {
+            background: "var(--secondary)",
+            color: "var(--text-main)"
+          } : {
+            background: "var(--card)",
+            color: "var(--text-main)",
+            border: "1px solid var(--secondary)"
+          }}
         >
-          {isWeightLogged ? (
-            <div className="btn-content" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-              <span className="btn-title" style={{ fontSize: '1.1rem' }}>Weight Logged</span>
-              <span style={{ fontSize: "1.4rem", marginLeft: '8px' }}>✅</span>
-            </div>
-          ) : (
-            <div className="btn-content" style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <span className="btn-title" style={{ fontSize: '1rem' }}>Log today's weight</span>
-              <span style={{ fontSize: "1.2rem", marginLeft: '8px' }}>⚖️</span>
-            </div>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <span style={{ fontSize: "1.2rem" }}>
+              {isWeightLogged ? "✅" : "⚖️"}
+            </span>
+            <span style={{ fontWeight: '600' }}>
+              {isWeightLogged ? "Weight Logged" : "Log Today's Weight"}
+            </span>
+          </div>
         </button>
       </div>
 
@@ -158,16 +159,11 @@ export default function Dashboard() {
         <ProgressChart weights={data?.weights || []} />
       </div>
 
-
-
-      {/* Modals */}
-
-
       <WeightModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={(val) => {
-          fetchDashboardData(); // Refresh data to update graph/streak immediately
+          fetchDashboardData();
         }}
       />
 

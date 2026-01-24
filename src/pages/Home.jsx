@@ -7,7 +7,51 @@ export default function Home() {
 
     return (
         <div className="landing-page-premium">
-            {/* Navbar Placeholder (if needed, or just keep it simple) */}
+            {/* Brand Header */}
+            <header style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "20px 8%",
+                background: "transparent"
+            }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <div style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "50%",
+                        background: "var(--primary)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center"
+                    }}>
+                        <span style={{ fontSize: "1.2rem" }}>💪</span>
+                    </div>
+                    <span style={{
+                        fontSize: "1.2rem",
+                        fontWeight: "700",
+                        color: "var(--text-main)",
+                        fontFamily: "Poppins, sans-serif"
+                    }}>
+                        Sai Aerobics
+                    </span>
+                </div>
+                <button
+                    onClick={() => navigate("/login")}
+                    style={{
+                        background: "transparent",
+                        border: "1px solid var(--primary)",
+                        color: "var(--primary)",
+                        padding: "10px 24px",
+                        borderRadius: "50px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                        fontSize: "0.9rem"
+                    }}
+                >
+                    Login
+                </button>
+            </header>
 
             {/* Hero Section */}
             <section className="premium-hero">

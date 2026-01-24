@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
-import workout from "../assets/workout.svg";
 import { register } from "../api";
 
 export default function Signup() {
@@ -21,11 +20,10 @@ export default function Signup() {
 
     try {
       const res = await register(name, email, password, phone);
-
       if (!res.ok) throw new Error("Signup failed");
 
       setSuccess(true);
-      setTimeout(() => navigate("/"), 1000);
+      setTimeout(() => navigate("/login"), 1500);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -36,10 +34,24 @@ export default function Signup() {
   return (
     <div className="auth-page fade-in">
       <div className={`auth-card ${error ? "shake" : ""}`}>
-        <img src={workout} alt="Workout" />
+        {/* Brand Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px" }}>
+          <div style={{
+            width: "45px",
+            height: "45px",
+            borderRadius: "50%",
+            background: "var(--primary, #E85D75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          }}>
+            <span style={{ fontSize: "1.3rem" }}>💪</span>
+          </div>
+          <span style={{ fontSize: "1.2rem", fontWeight: "700", color: "var(--text-main)" }}>Sai Aerobics</span>
+        </div>
 
         <h2>Create Account</h2>
-        <p>Start tracking your fitness</p>
+        <p>Start your fitness journey today</p>
 
         <input
           type="text"
@@ -58,7 +70,7 @@ export default function Signup() {
         <div style={{ position: "relative", marginBottom: "15px" }}>
           <input
             type={showPassword ? "text" : "password"}
-            placeholder="Password"
+            placeholder="Password (min 8 characters)"
             value={password}
             onChange={e => setPassword(e.target.value)}
             disabled={loading}
@@ -93,14 +105,13 @@ export default function Signup() {
         {error && <p className="error">{error}</p>}
 
         <button className="primary-btn" onClick={handleSignup} disabled={loading}>
-          {loading ? <span className="spinner" /> : "Sign Up"}
+          {loading ? <span className="spinner" /> : "Create Account"}
         </button>
 
-        {success && <p className="success">Account created ✓</p>}
+        {success && <p className="success">Account created! Redirecting to login...</p>}
 
         <span className="switch">
-          Already a member?{" "}
-          <b onClick={() => navigate("/")}>Login</b>
+          Already a member? <b onClick={() => navigate("/login")}>Login</b>
         </span>
       </div>
     </div>

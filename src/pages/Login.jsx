@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
-import workout from "../assets/workout.svg";
 import { login, googleAuth } from "../api";
 import { auth, googleProvider } from "../firebase";
 import { signInWithPopup } from "firebase/auth";
@@ -23,7 +22,6 @@ export default function Login() {
 
     try {
       const data = await login(email, password);
-
       if (data.error) throw new Error(data.error);
 
       localStorage.setItem("token", data.token);
@@ -54,7 +52,6 @@ export default function Login() {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
 
-      // Send user data to backend to sync/create account
       const data = await googleAuth({
         email: user.email,
         name: user.displayName,
@@ -88,12 +85,27 @@ export default function Login() {
   return (
     <div className="auth-page fade-in">
       <div className={`auth-card ${error ? "shake" : ""}`}>
-        <img src={workout} />
+        {/* Brand Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px" }}>
+          <div style={{
+            width: "45px",
+            height: "45px",
+            borderRadius: "50%",
+            background: "var(--primary, #E85D75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center"
+          }}>
+            <span style={{ fontSize: "1.3rem" }}>💪</span>
+          </div>
+          <span style={{ fontSize: "1.2rem", fontWeight: "700", color: "var(--text-main)" }}>Sai Aerobics</span>
+        </div>
 
         <h2>Welcome Back</h2>
         <p>Continue your fitness journey</p>
 
         <input
+          type="email"
           placeholder="Email address"
           value={email}
           onChange={e => setEmail(e.target.value)}
@@ -129,7 +141,7 @@ export default function Login() {
         </div>
 
         <div style={{ textAlign: "right", marginTop: "-10px", marginBottom: "15px" }}>
-          <span onClick={() => navigate("/forgot-password")} style={{ color: "#666", fontSize: "0.85rem", cursor: "pointer", fontWeight: "500" }}>
+          <span onClick={() => navigate("/forgot-password")} style={{ color: "var(--primary, #E85D75)", fontSize: "0.85rem", cursor: "pointer", fontWeight: "500" }}>
             Forgot Password?
           </span>
         </div>
@@ -142,21 +154,20 @@ export default function Login() {
 
         {/* Divider */}
         <div style={{ display: "flex", alignItems: "center", margin: "20px 0", gap: "10px" }}>
-          <div style={{ flex: 1, height: "1px", background: "#ddd" }}></div>
-          <span style={{ color: "#999", fontSize: "0.85rem" }}>or</span>
-          <div style={{ flex: 1, height: "1px", background: "#ddd" }}></div>
+          <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }}></div>
+          <span style={{ color: "#9ca3af", fontSize: "0.85rem" }}>or</span>
+          <div style={{ flex: 1, height: "1px", background: "#e5e7eb" }}></div>
         </div>
 
         {/* Google Login Button */}
         <button
-          className="google-btn"
           onClick={handleGoogleLogin}
           disabled={loading || googleLoading}
           style={{
             width: "100%",
             padding: "14px",
             borderRadius: "50px",
-            border: "1px solid #ddd",
+            border: "1px solid #e5e7eb",
             background: "#fff",
             display: "flex",
             alignItems: "center",
@@ -165,12 +176,12 @@ export default function Login() {
             cursor: "pointer",
             fontWeight: "600",
             fontSize: "0.95rem",
-            color: "#333",
+            color: "#374151",
             transition: "all 0.2s"
           }}
         >
           {googleLoading ? (
-            <span className="spinner" />
+            <span className="spinner" style={{ borderTopColor: "#E85D75" }} />
           ) : (
             <>
               <svg width="20" height="20" viewBox="0 0 24 24">
