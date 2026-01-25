@@ -363,17 +363,16 @@ app.post("/auth/forgot-password", async (req, res) => {
       });
       res.json({ message: "OTP sent successfully" });
     } catch (emailErr) {
-      console.error("Nodemailer Error:", emailErr);
+      console.error("Nodemailer FAILLLLLL:", emailErr);
+      console.error("Stack:", emailErr.stack);
 
-      // FALLBACK FOR DEV: If email fails (e.g. invalid credentials), login OTP to console so you can still test it.
-      if (process.env.NODE_ENV !== 'production') {
-        console.log("========================================");
-        console.log(`⚠️ DEV MODE: Email failed. Your OTP is: ${otp}`);
-        console.log("========================================");
-        return res.json({ message: "Dev Mode: OTP logged to server terminal" });
-      }
+      // FALLBACK FOR DEV or DEPLOYMENT DEBUGGING:
+      // If email fails, log OTP to server console so you can verify.
+      console.log("========================================");
+      console.log(`⚠️ EMAIL FAILED. Your OTP is: ${otp}`);
+      console.log("========================================");
 
-      res.status(500).json({ error: "Failed to send email. Verification code not sent." });
+      res.status(500).json({ error: "Failed to send email. Check Server Logs for OTP." });
     }
 
   } catch (err) {
