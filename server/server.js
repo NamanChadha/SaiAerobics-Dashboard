@@ -61,11 +61,15 @@ const razorpay = new Razorpay({
   key_secret: process.env.RAZORPAY_KEY_SECRET || "PLACEHOLDER_SECRET"
 });
 
+const isDev = process.env.NODE_ENV !== "production";
+
 // Passport Google OAuth 2.0 Strategy
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: process.env.GOOGLE_CALLBACK_URL || "https://api.saiaerobics.in/auth/google/callback"
+  // Dynamic Callback URL: Uses Env var, or localhost in dev, or prod URL
+  callbackURL: process.env.GOOGLE_CALLBACK_URL ||
+    (isDev ? "http://localhost:5000/auth/google/callback" : "https://api.saiaerobics.in/auth/google/callback")
 },
   async (accessToken, refreshToken, profile, done) => {
     try {
@@ -337,7 +341,11 @@ app.post("/auth/forgot-password", async (req, res) => {
     );
 
     // Use FRONTEND_URL for production, fallback to localhost for dev
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    // Force localhost in dev mode to avoid redirecting to prod if .env has prod URL
+    const frontendUrl = (process.env.NODE_ENV !== "production")
+      ? "http://localhost:5173"
+      : (process.env.FRONTEND_URL || "http://localhost:5173");
+
     const link = `${frontendUrl}/reset-password/${resetToken}`;
 
     // If email credentials are missing, return the link directly for testing
