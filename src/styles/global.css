@@ -27,16 +27,37 @@ body {
   background: var(--bg);
   color: var(--text-main);
   transition: background-color 0.3s ease, color 0.3s ease;
-  /* App-like feel: Disable text selection / cursor everywhere except inputs */
-  -webkit-user-select: none;
-  user-select: none;
-  cursor: default;
+}
+
+/* Proper cursor for interactive elements */
+button,
+a,
+[role="button"],
+.menu-link,
+.logout-btn {
+  cursor: pointer;
 }
 
 input,
 textarea,
+select,
 [contenteditable] {
-  -webkit-user-select: text;
-  user-select: text;
   cursor: text;
+}
+
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  cursor: pointer;
+}
+
+/* Disable text selection on non-editable elements for app-like feel */
+.dash-header,
+.menu-drawer,
+.stats-row,
+.member-row,
+.badge-tier,
+.tier-badge {
+  -webkit-user-select: none;
+  user-select: none;
 }

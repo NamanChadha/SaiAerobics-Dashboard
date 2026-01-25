@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 
 export default function DarkModeToggle() {
-    const [dark, setDark] = useState(true);
+    // Initialize from localStorage, default to light mode (false)
+    const [dark, setDark] = useState(() => {
+        const saved = localStorage.getItem("darkMode");
+        return saved === "true"; // Default to light mode if not set
+    });
 
     useEffect(() => {
         if (dark) {
@@ -9,6 +13,8 @@ export default function DarkModeToggle() {
         } else {
             document.body.classList.remove("dark");
         }
+        // Save preference to localStorage
+        localStorage.setItem("darkMode", dark.toString());
     }, [dark]);
 
     return (
@@ -29,8 +35,10 @@ export default function DarkModeToggle() {
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: "1.2rem",
-                zIndex: 1000
+                zIndex: 1000,
+                boxShadow: "0 2px 10px rgba(0,0,0,0.1)"
             }}
+            title={dark ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
             {dark ? "🌙" : "☀️"}
         </button>
