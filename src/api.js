@@ -38,6 +38,13 @@ export async function saveWeight(weight) {
   return res.json();
 }
 
+export async function getWeightLogs() {
+  const res = await fetch(`${API_URL}/weight`, {
+    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+  });
+  return res.json();
+}
+
 export async function markAttendance() {
   const res = await fetch(`${API_URL}/attendance`, {
     method: "POST",
@@ -45,6 +52,31 @@ export async function markAttendance() {
       "Content-Type": "application/json",
       Authorization: `Bearer ${localStorage.getItem("token")}`
     }
+  });
+  return res.json();
+}
+
+export async function createOrder(amount, currency = "INR") {
+  const res = await fetch(`${API_URL}/payment/order`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`
+
+    },
+    body: JSON.stringify({ amount, currency })
+  });
+  return res.json();
+}
+
+export async function verifyPayment(paymentData) {
+  const res = await fetch(`${API_URL}/payment/verify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`
+    },
+    body: JSON.stringify(paymentData)
   });
   return res.json();
 }
@@ -191,67 +223,7 @@ export async function overrideAttendance(id, date, action) {
 }
 
 // Legacy payment endpoints (for backwards compatibility)
-export async function createOrder() {
-  const res = await fetch(`${API_URL}/payment/order`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
-  });
-  return res.json();
-}
 
-export async function verifyPayment(data) {
-  const res = await fetch(`${API_URL}/payment/verify`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
-    body: JSON.stringify(data)
-  });
-  return res.json();
-}
-
-// ==========================================
-// RAZORPAY LIVE PAYMENT FUNCTIONS
-// ==========================================
-
-// Create Razorpay Order (new endpoint)
-export async function createPaymentOrder(amount = 500) {
-  const res = await fetch(`${API_URL}/payments/create-order`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
-    body: JSON.stringify({ amount })
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Failed to create payment order");
-  }
-
-  return res.json();
-}
-
-// Verify Razorpay Payment (new endpoint)
-export async function verifyPaymentSignature(paymentData) {
-  const res = await fetch(`${API_URL}/payments/verify`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
-    body: JSON.stringify(paymentData)
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Payment verification failed");
-  }
-
-  return res.json();
-}
 
 export async function forgotPassword(email) {
   const res = await fetch(`${API_URL}/auth/forgot-password`, {

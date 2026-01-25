@@ -1355,6 +1355,120 @@ app.post("/admin/trigger-expiry", authenticate, requireAdmin, async (req, res) =
   res.json({ message: "Expiry check triggered manually." });
 });
 
+// ==========================================
+// WEIGHT LOGGING ROUTES
+// ==========================================
+
+// WEIGHT: Get Logs
+app.get("/weight", authenticate, async (req, res) => {
+  try {
+    // Get last 30 logs
+    const weightRes = await pool.query(
+      "SELECT weight, log_date as date FROM weight_logs WHERE user_id=$1 ORDER BY log_date DESC LIMIT 30",
+      [req.user.id]
+    );
+    res.json(weightRes.rows);
+  } catch (err) {
+    console.error("Fetch Weight Error:", err);
+    res.status(500).json({ error: "Failed to fetch weight logs" });
+  }
+});
+
+// WEIGHT: Add Log
+app.post("/weight", authenticate, async (req, res) => {
+  try {
+    const { weight, date } = req.body;
+
+    // Validate
+    if (!weight || isNaN(weight) || weight < 20 || weight > 300) {
+      return res.status(400).json({ error: "Invalid weight. Must be between 20 and 300 kg." });
+    }
+
+    await pool.query(
+      "INSERT INTO weight_logs (user_id, weight, log_date) VALUES ($1, $2, $3)",
+      [req.user.id, weight, date || new Date()]
+    );
+
+    // Update streak if needed (simple check)
+    const today = new Date().toISOString().split("T")[0];
+    await updateStreak(req.user.id, today);
+
+    res.json({ message: "Weight logged successfully" });
+  } catch (err) {
+    console.error("Log Weight Error:", err);
+    res.status(500).json({ error: "Failed to log weight" });
+  }
+});
+
+
+// ==========================================
+// PAYMENT ROUTES (Razorpay)
+// ==========================================
+
+// PAYMENT: Create Order
+app.post("/payment/order", authenticate, async (req, res) => {
+  try {
+    const { amount, currency = "INR" } = req.body; // Amount in INR
+
+    if (!amount) return res.status(400).json({ error: "Amount is required" });
+
+    // Create Razorpay order
+    const options = {
+      amount: Math.round(amount * 100), // Convert to paisa (integer)
+      currency,
+      receipt: `receipt_${Date.now()}_${req.user.id}`
+    };
+
+    const order = await razorpay.orders.create(options);
+    res.json(order);
+  } catch (err) {
+    console.error("Razorpay Order Error:", err);
+    res.status(500).json({ error: "Failed to create payment order" });
+  }
+});
+
+// PAYMENT: Verify Payment
+app.post("/payment/verify", authenticate, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, planType } = req.body;
+
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest("hex");
+
+    if (expectedSignature === razorpay_signature) {
+      // Payment successful
+
+      // Calculate new expiry date based on planType
+      // planType: 'monthly' | 'quarterly' | 'yearly'
+
+      let info = await pool.query("SELECT membership_end, tier FROM users WHERE id=$1", [req.user.id]);
+      let currentEnd = info.rows[0].membership_end ? new Date(info.rows[0].membership_end) : new Date();
+      if (currentEnd < new Date()) currentEnd = new Date(); // If expired, start from now
+
+      let monthsToAdd = 1;
+      if (planType === 'quarterly') monthsToAdd = 3;
+      if (planType === 'yearly') monthsToAdd = 12;
+
+      currentEnd.setMonth(currentEnd.getMonth() + monthsToAdd);
+
+      await pool.query(
+        "UPDATE users SET payment_status='PAID', payment_id=$1, payment_date=NOW(), membership_end=$2, active=true WHERE id=$3",
+        [razorpay_payment_id, currentEnd, req.user.id]
+      );
+
+      res.json({ success: true, message: "Payment verified & Membership Updated!" });
+    } else {
+      res.status(400).json({ success: false, error: "Invalid signature" });
+    }
+  } catch (err) {
+    console.error("Payment Verify Error:", err);
+    res.status(500).json({ error: "Payment verification failed" });
+  }
+});
+
 // --- GLOBAL ERROR HANDLING MIDDLEWARE (OWASP: Proper Error Handling) ---
 app.use((err, req, res, next) => {
   // Log error for internal monitoring

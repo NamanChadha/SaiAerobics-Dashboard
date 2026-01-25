@@ -82,10 +82,24 @@ export default function MembershipCard({ tier, batchTime, daysLeft }) {
                 }} />
             </div>
 
-            {isExpired && (
-                <p style={{ textAlign: "center", marginTop: "15px", fontSize: "0.9rem", opacity: 0.9 }}>
-                    Please contact admin to renew.
-                </p>
+            {onRenew && (
+                <div style={{ textAlign: "center", marginTop: "20px" }}>
+                    <button
+                        onClick={onRenew}
+                        style={{
+                            background: "white",
+                            color: "var(--primary)",
+                            border: "none",
+                            padding: "10px 20px",
+                            borderRadius: "20px",
+                            fontWeight: "bold",
+                            cursor: "pointer",
+                            boxShadow: "0 4px 6px rgba(0,0,0,0.1)"
+                        }}
+                    >
+                        {isExpired ? "Renew Now ⚡" : "Extend Membership"}
+                    </button>
+                </div>
             )}
         </div>
     );

@@ -7,6 +7,7 @@ import MembershipCard from "../components/MembershipCard";
 import StreakCalendar from "../components/StreakCalendar";
 import ProgressChart from "../components/ProgressChart";
 import NutritionModal from "../components/NutritionModal";
+import PaymentModal from "../components/PaymentModal";
 import logo from "../assets/logo.png";
 
 export default function Dashboard() {
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isNutritionModalOpen, setIsNutritionModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
   async function fetchDashboardData() {
     try {
@@ -99,6 +101,7 @@ export default function Dashboard() {
           tier={data.tier || 'silver'}
           batchTime={data.batchTime || 'Morning'}
           daysLeft={data.daysLeft || 0}
+          onRenew={() => setIsPaymentModalOpen(true)}
         />
       )}
 
@@ -174,6 +177,14 @@ export default function Dashboard() {
       <NutritionModal
         isOpen={isNutritionModalOpen}
         onClose={() => setIsNutritionModalOpen(false)}
+      />
+
+      <PaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onSuccess={() => {
+          fetchDashboardData(); // Refresh data to show new expiry
+        }}
       />
     </div>
   );
