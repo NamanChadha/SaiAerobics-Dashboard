@@ -1,6 +1,6 @@
 import "../styles/dashboard.css";
 import { useEffect, useState } from "react";
-import { getUserProfile, updateUserProfile } from "../api";
+import { getUserProfile, updateUserProfile, submitFeedback } from "../api";
 import DarkModeToggle from "../components/DarkModeToggle";
 
 export default function Profile() {
@@ -72,6 +72,19 @@ export default function Profile() {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const [feedback, setFeedback] = useState("");
+
+    const handleFeedbackSubmit = async () => {
+        if (!feedback.trim()) return;
+        try {
+            await submitFeedback(feedback);
+            setMsg({ type: "success", text: "Feedback sent! Thank you. 🙏" });
+            setFeedback("");
+        } catch (err) {
+            setMsg({ type: "error", text: "Failed to send feedback." });
+        }
+    };
+
     if (loading) return <div className="dash" style={{ textAlign: "center", paddingTop: "50px", color: "var(--text-main)" }}>Loading Profile...</div>;
 
     return (
@@ -82,7 +95,6 @@ export default function Profile() {
             </header>
 
             <div className="profile-card" style={{ maxWidth: "500px", margin: "0 auto" }}>
-
                 {msg && (
                     <div style={{
                         padding: "12px", borderRadius: "16px", marginBottom: "25px", textAlign: "center", fontWeight: "600", fontSize: "0.9rem",
@@ -155,6 +167,35 @@ export default function Profile() {
                         >
                             Edit Profile ✏️
                         </button>
+
+                        {/* FEEDBACK SECTION */}
+                        <div style={{ marginTop: "30px", borderTop: "1px dashed var(--border)", paddingTop: "20px" }}>
+                            <h3 style={{ fontSize: "1.1rem", margin: "0 0 10px 0" }}>Feedback & Suggestions 💬</h3>
+                            <textarea
+                                className="modern-input"
+                                rows="3"
+                                placeholder="Tell us how we can improve..."
+                                value={feedback}
+                                onChange={e => setFeedback(e.target.value)}
+                                style={{ resize: "none" }}
+                            />
+                            <button
+                                onClick={handleFeedbackSubmit}
+                                style={{
+                                    marginTop: "10px",
+                                    padding: "10px 20px",
+                                    borderRadius: "12px",
+                                    background: "rgba(16, 185, 129, 0.1)",
+                                    color: "#10b981",
+                                    fontWeight: "600",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    width: "100%"
+                                }}
+                            >
+                                Send Message
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     /* EDIT MODE */

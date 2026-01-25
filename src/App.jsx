@@ -7,6 +7,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import WeightLog from "./pages/WeightLog";
 import Nutrition from "./pages/Nutrition";
+import BMI from "./pages/BMI";
 import AdminDashboard from "./pages/AdminDashboard";
 import Profile from "./pages/Profile";
 import AuthCallback from "./pages/AuthCallback";
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/weight-log" element={<WeightLog />} />
         <Route path="/nutrition" element={<Nutrition />} />
+        <Route path="/bmi" element={<BMI />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/auth/callback" element={<AuthCallback />} />

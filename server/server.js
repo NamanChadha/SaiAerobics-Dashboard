@@ -414,6 +414,26 @@ app.put("/profile", authenticate, async (req, res) => {
   }
 });
 
+// FEEDBACK: Submit User Feedback
+app.post("/feedback", authenticate, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || message.trim() === "") {
+      return res.status(400).json({ error: "Message cannot be empty" });
+    }
+
+    await pool.query(
+      "INSERT INTO feedback (user_id, message) VALUES ($1, $2)",
+      [req.user.id, message]
+    );
+
+    res.json({ success: true, message: "Feedback submitted successfully! We appreciate your input." });
+  } catch (err) {
+    console.error("Feedback Error:", err);
+    res.status(500).json({ error: "Failed to submit feedback" });
+  }
+});
+
 // DASHBOARD: Get user data with membership countdown and streak
 app.get("/dashboard", authenticate, async (req, res) => {
   try {

@@ -144,6 +144,19 @@ export async function getAdminGraphs() {
   return res.json();
 }
 
+export async function submitFeedback(message) {
+  const res = await fetch(`${API_URL}/feedback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${localStorage.getItem("token")}`
+    },
+    body: JSON.stringify({ message })
+  });
+  if (!res.ok) throw new Error("Failed to submit feedback");
+  return res.json();
+}
+
 export async function updateUserAdmin(id, data) {
   const res = await fetch(`${API_URL}/admin/users/${id}/update`, {
     method: "POST",

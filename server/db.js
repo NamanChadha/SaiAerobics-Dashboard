@@ -71,6 +71,14 @@ export async function testDB() {
         UNIQUE(user_id, date)
       );
 
+      -- Feedback Table
+      CREATE TABLE IF NOT EXISTS feedback (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        message TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       -- Alter Tables (for backward compatibility if run on existing DBs)
       ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS membership_start DATE DEFAULT CURRENT_DATE;

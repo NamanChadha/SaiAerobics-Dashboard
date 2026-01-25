@@ -40,6 +40,9 @@ export default function BurgerMenu() {
                         <Link to="/nutrition" className={`menu-link ${isActive('/nutrition')}`} onClick={() => setIsOpen(false)}>
                             <span>🍎</span> Daily Eatables
                         </Link>
+                        <Link to="/bmi" className={`menu-link ${isActive('/bmi')}`} onClick={() => setIsOpen(false)}>
+                            <span>⚖️</span> BMI Calculator
+                        </Link>
                         <Link to="/profile" className={`menu-link ${isActive('/profile')}`} onClick={() => setIsOpen(false)}>
                             <span>👤</span> My Profile
                         </Link>
