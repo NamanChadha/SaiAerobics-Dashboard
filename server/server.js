@@ -14,6 +14,10 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
+import helmet from "helmet";
+import xss from "xss-clean";
+import hpp from "hpp";
+import compression from "compression";
 
 import cron from "node-cron";
 import { initPool, pool, testDB } from "./db.js";
@@ -21,8 +25,32 @@ import { initPool, pool, testDB } from "./db.js";
 const app = express();
 app.set('trust proxy', 1); // Trust Render's proxy for rate limiting
 
+// --- SECURITY MIDDLEWARE ---
+// Set Security HTTP Headers
+app.use(helmet());
+
+// Prevent Cross-Site Scripting (XSS)
+app.use(xss());
+
+// Prevent HTTP Parameter Pollution
+app.use(hpp());
+
+// Compress responses (Performance)
+app.use(compression());
+
+// Global Rate Limiting - Limit 100 requests per 10 mins per IP
+const globalLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 200, // Augmented limit for normal usage
+  message: "Too many requests from this IP, please try again later."
+});
+app.use("/api", globalLimiter); // Apply to API routes if prefixed, or globally if not
+
+// Allow CORS
 app.use(cors());
-app.use(express.json());
+
+// Body Parsers
+app.use(express.json({ limit: "10kb" })); // Limit body size to prevent DoS
 
 import Razorpay from "razorpay";
 import passport from "passport";
@@ -1171,6 +1199,26 @@ async function sendExpiryEmail(email, name, days) {
 app.post("/admin/trigger-expiry", authenticate, requireAdmin, async (req, res) => {
   await checkMembershipExpiry();
   res.json({ message: "Expiry check triggered manually." });
+});
+
+// --- GLOBAL ERROR HANDLING MIDDLEWARE (OWASP: Proper Error Handling) ---
+app.use((err, req, res, next) => {
+  // Log error for internal monitoring
+  console.error("🔥 Global Error:", err.stack); // Log stack internally
+
+  // Determine error status and message
+  const statusCode = err.isOperational ? err.statusCode : 500;
+  const message = process.env.NODE_ENV === "production"
+    ? "Something went wrong! Please try again later."
+    : err.message; // Don't leak details in production
+
+  res.status(statusCode).json({
+    status: "error",
+    statusCode,
+    message,
+    // Only show stack trace in development
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack })
+  });
 });
 
 startServer();
