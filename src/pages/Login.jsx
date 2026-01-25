@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useGoogleLogin } from "@react-oauth/google";
 import "../styles/auth.css";
 import { login, googleAuth } from "../api";
-import { auth, googleProvider } from "../firebase";
-import { signInWithPopup } from "firebase/auth";
 import logoPlaceholder from "../assets/logo_placeholder.svg";
 
 export default function Login() {
@@ -45,42 +44,59 @@ export default function Login() {
     }
   }
 
-  async function handleGoogleLogin() {
-    setError("");
-    setGoogleLoading(true);
+  // Google OAuth Login using @react-oauth/google
+  const googleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setGoogleLoading(true);
+      setError("");
 
-    try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      try {
+        // Get user info from Google
+        const userInfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+        });
+        const userInfo = await userInfoRes.json();
 
-      const data = await googleAuth({
-        email: user.email,
-        name: user.displayName,
-        uid: user.uid,
-        photoURL: user.photoURL
-      });
+        // Send to our backend
+        const data = await googleAuth({
+          email: userInfo.email,
+          name: userInfo.name,
+          uid: userInfo.sub, // Google's unique user ID
+          photoURL: userInfo.picture
+        });
 
-      if (data.error) throw new Error(data.error);
+        if (data.error) throw new Error(data.error);
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user_name", data.name);
-      localStorage.setItem("user_role", data.role);
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user_name", data.name);
+        localStorage.setItem("user_role", data.role);
 
-      setSuccess(true);
+        setSuccess(true);
 
-      setTimeout(() => {
-        if (data.role === "admin") {
-          navigate("/admin");
-        } else {
-          navigate("/dashboard");
-        }
-      }, 700);
-    } catch (err) {
-      console.error("Google Login Error:", err);
-      setError(err.message || "Google login failed. Please try again.");
-    } finally {
+        setTimeout(() => {
+          if (data.role === "admin") {
+            navigate("/admin");
+          } else {
+            navigate("/dashboard");
+          }
+        }, 700);
+      } catch (err) {
+        console.error("Google Login Error:", err);
+        setError(err.message || "Google login failed. Please try again.");
+      } finally {
+        setGoogleLoading(false);
+      }
+    },
+    onError: (error) => {
+      console.error("Google Login Error:", error);
+      setError("Google login failed. Please try again.");
       setGoogleLoading(false);
     }
+  });
+
+  function handleGoogleLogin() {
+    setGoogleLoading(true);
+    googleLogin();
   }
 
   return (
