@@ -25,11 +25,57 @@ app.use(cors());
 app.use(express.json());
 
 import Razorpay from "razorpay";
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "rzp_test_PLACEHOLDER",
   key_secret: process.env.RAZORPAY_KEY_SECRET || "PLACEHOLDER_SECRET"
 });
+
+// Passport Google OAuth 2.0 Strategy
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: process.env.GOOGLE_CALLBACK_URL || "https://api.saiaerobics.in/auth/google/callback"
+},
+  async (accessToken, refreshToken, profile, done) => {
+    try {
+      const email = profile.emails[0].value.toLowerCase().trim();
+      const name = profile.displayName;
+      const googleId = profile.id;
+
+      // Check if user exists
+      let user = await pool.query("SELECT * FROM users WHERE LOWER(email)=$1", [email]);
+
+      if (user.rowCount === 0) {
+        // Create new user with random password (they'll use Google to login)
+        const randomPassword = crypto.randomBytes(16).toString("hex");
+        const hash = await bcrypt.hash(randomPassword, 10);
+
+        const result = await pool.query(
+          "INSERT INTO users (name, email, password, google_uid) VALUES ($1,$2,$3,$4) RETURNING id, email, role, name, active",
+          [name, email, hash, googleId]
+        );
+        user = { rows: [result.rows[0]], rowCount: 1 };
+      } else {
+        // Update google_uid if not set
+        if (!user.rows[0].google_uid) {
+          await pool.query("UPDATE users SET google_uid=$1 WHERE id=$2", [googleId, user.rows[0].id]);
+        }
+      }
+
+      return done(null, user.rows[0]);
+    } catch (err) {
+      console.error("Google Strategy Error:", err);
+      return done(err, null);
+    }
+  }
+));
+
+// Passport serialization (not using sessions, but required)
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
 
 // Initialize DB
 // DB Init handled in startServer
@@ -60,6 +106,49 @@ const loginLimiter = rateLimit({
   max: 5, // Limit each IP to 5 login requests per windowMs
   message: "Too many login attempts from this IP, please try again after 15 minutes"
 });
+
+// Initialize Passport
+app.use(passport.initialize());
+
+// ==========================================
+// GOOGLE OAUTH ROUTES
+// ==========================================
+
+// GET /auth/google - Initiate Google OAuth
+app.get("/auth/google", passport.authenticate("google", {
+  scope: ["profile", "email"]
+}));
+
+// GET /auth/google/callback - Handle Google OAuth callback
+app.get("/auth/google/callback",
+  passport.authenticate("google", { session: false, failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=google_auth_failed` }),
+  (req, res) => {
+    try {
+      const user = req.user;
+
+      // Check if account is frozen
+      if (!user.active) {
+        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=account_frozen`);
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { id: user.id, role: user.role || "member" },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      // Redirect to frontend with token and user info
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&name=${encodeURIComponent(user.name)}&role=${user.role || "member"}`;
+
+      res.redirect(redirectUrl);
+    } catch (err) {
+      console.error("Google Callback Error:", err);
+      res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=server_error`);
+    }
+  }
+);
 
 // AUTH: Register (Allowed for public signup)
 app.post("/auth/register", async (req, res) => {
