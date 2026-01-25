@@ -666,6 +666,133 @@ app.post("/payment/verify", authenticate, async (req, res) => {
   }
 });
 
+// ==========================================
+// RAZORPAY LIVE PAYMENT INTEGRATION
+// Routes: /payments/create-order, /payments/verify
+// ==========================================
+
+// POST /payments/create-order - Create Razorpay Order
+app.post("/payments/create-order", authenticate, async (req, res) => {
+  try {
+    // Validate environment variables
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      console.error("Razorpay keys not configured");
+      return res.status(500).json({
+        success: false,
+        error: "Payment gateway not configured. Please contact support."
+      });
+    }
+
+    // Get amount from request or use default
+    const amount = req.body.amount || 500; // Default ₹500
+
+    // Validate amount
+    if (amount < 1 || amount > 100000) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid amount. Must be between ₹1 and ₹100,000."
+      });
+    }
+
+    const options = {
+      amount: Math.round(amount * 100), // Convert to paise
+      currency: "INR",
+      receipt: `rcpt_${req.user.id}_${Date.now()}`,
+      notes: {
+        userId: req.user.id,
+        purpose: "Nutrition Plan Subscription"
+      }
+    };
+
+    const order = await razorpay.orders.create(options);
+
+    res.json({
+      success: true,
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key_id: process.env.RAZORPAY_KEY_ID // Safe to expose - this is the public key
+    });
+
+  } catch (err) {
+    console.error("Razorpay Create Order Error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create payment order. Please try again."
+    });
+  }
+});
+
+// POST /payments/verify - Verify Razorpay Payment
+app.post("/payments/verify", authenticate, async (req, res) => {
+  try {
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+    // Validate required fields
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required payment details."
+      });
+    }
+
+    // Validate environment variable
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      console.error("Razorpay secret not configured");
+      return res.status(500).json({
+        success: false,
+        error: "Payment verification not configured. Please contact support."
+      });
+    }
+
+    // Generate expected signature using HMAC SHA256
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+    const expectedSignature = crypto
+      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
+      .update(body)
+      .digest("hex");
+
+    // Verify signature
+    if (expectedSignature !== razorpay_signature) {
+      console.error("Signature mismatch for user:", req.user.id);
+      return res.status(400).json({
+        success: false,
+        error: "Payment verification failed. Invalid signature."
+      });
+    }
+
+    // Payment verified! Update user subscription
+    const today = new Date();
+    const expiry = new Date();
+    expiry.setDate(today.getDate() + 30); // 30 Days Validity
+
+    await pool.query(
+      `UPDATE users SET 
+        payment_status = 'PAID', 
+        payment_id = $1, 
+        payment_date = $2, 
+        expiry_date = $3 
+       WHERE id = $4`,
+      [razorpay_payment_id, today, expiry, req.user.id]
+    );
+
+    console.log(`✅ Payment verified for user ${req.user.id}: ${razorpay_payment_id}`);
+
+    res.json({
+      success: true,
+      message: "Payment successful! Your subscription is now active.",
+      expiry_date: expiry.toISOString()
+    });
+
+  } catch (err) {
+    console.error("Razorpay Verify Error:", err);
+    res.status(500).json({
+      success: false,
+      error: "Payment verification failed. Please contact support."
+    });
+  }
+});
+
 // EMAIL: Share Plan
 app.post("/share/email", authenticate, async (req, res) => {
   try {

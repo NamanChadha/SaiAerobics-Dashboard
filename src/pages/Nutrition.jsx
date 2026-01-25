@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { generateMealPlan, shareMealPlanEmail, getUserProfile, createOrder, verifyPayment } from "../api";
+import { generateMealPlan, shareMealPlanEmail, getUserProfile, createPaymentOrder, verifyPaymentSignature } from "../api";
 import "../styles/dashboard.css";
 
 import { jsPDF } from "jspdf";
@@ -60,10 +60,11 @@ export default function Nutrition() {
 
   const handlePayment = async () => {
     try {
-      const order = await createOrder();
+      // Create order using new endpoint
+      const orderResponse = await createPaymentOrder(500); // ₹500
 
-      if (!order.id) {
-        alert("Server error. Please try again.");
+      if (!orderResponse.success || !orderResponse.order_id) {
+        alert(orderResponse.error || "Server error. Please try again.");
         return;
       }
 
@@ -81,23 +82,28 @@ export default function Nutrition() {
       }
 
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Uses env variable
-        amount: order.amount,
-        currency: order.currency,
+        key: orderResponse.key_id, // Key ID from backend response
+        amount: orderResponse.amount,
+        currency: orderResponse.currency,
         name: "Sai Aerobics",
         description: "Personalised Meal Plan Subscription",
-        order_id: order.id,
+        order_id: orderResponse.order_id,
         handler: async function (response) {
           try {
-            const verify = await verifyPayment(response);
+            const verify = await verifyPaymentSignature({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
+
             if (verify.success) {
               alert("Payment Successful! Unlocking Plan...");
               checkSubscription(); // Refresh state
             } else {
-              alert("Payment Verification Failed");
+              alert(verify.error || "Payment Verification Failed");
             }
           } catch (e) {
-            alert("Payment Verification Error");
+            alert("Payment Verification Error: " + e.message);
           }
         },
         prefill: {
