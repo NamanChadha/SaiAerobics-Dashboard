@@ -7,8 +7,8 @@ export default function BurgerMenu() {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // Hide menu on auth pages
-    const hideMenu = ["/", "/login", "/signup", "/forgot-password"].includes(location.pathname) || location.pathname.startsWith("/reset-password");
+    // Hide menu on auth pages and admin dashboard
+    const hideMenu = ["/", "/login", "/signup", "/forgot-password", "/admin"].includes(location.pathname) || location.pathname.startsWith("/reset-password");
     if (hideMenu) return null;
 
     function handleLogout() {
@@ -38,7 +38,7 @@ export default function BurgerMenu() {
                             <span>🏠</span> Dashboard
                         </Link>
                         <Link to="/nutrition" className={`menu-link ${isActive('/nutrition')}`} onClick={() => setIsOpen(false)}>
-                            <span>🍎</span> AI Nutritionist
+                            <span>🍎</span> Daily Eatables
                         </Link>
                         <Link to="/profile" className={`menu-link ${isActive('/profile')}`} onClick={() => setIsOpen(false)}>
                             <span>👤</span> My Profile

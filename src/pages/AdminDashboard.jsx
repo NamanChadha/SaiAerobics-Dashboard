@@ -178,6 +178,7 @@ export default function AdminDashboard() {
               <tr style={{ textAlign: "left", color: "var(--text-muted)", fontSize: "0.9rem", borderBottom: "2px solid #f1f5f9" }}>
                 <th style={{ padding: "15px" }}>Member</th>
                 <th style={{ padding: "15px" }}>Plan</th>
+                <th style={{ padding: "15px" }}>Batch</th>
                 <th style={{ padding: "15px" }}>Status</th>
                 <th style={{ padding: "15px" }}>Expiry</th>
                 <th style={{ padding: "15px" }}>Streak</th>
@@ -196,6 +197,19 @@ export default function AdminDashboard() {
                     </td>
                     <td className="col-plan" style={{ padding: "15px" }}>
                       <span className={`badge-tier ${u.tier?.toLowerCase() || 'silver'}`}>{u.tier || 'Silver'}</span>
+                    </td>
+                    <td className="col-batch" style={{ padding: "15px" }}>
+                      <div className="mobile-label">Batch:</div>
+                      <span style={{
+                        padding: "4px 10px",
+                        borderRadius: "8px",
+                        fontSize: "0.8rem",
+                        fontWeight: "500",
+                        background: u.batch_time ? "rgba(99, 102, 241, 0.1)" : "rgba(148, 163, 184, 0.1)",
+                        color: u.batch_time ? "#6366f1" : "#94a3b8"
+                      }}>
+                        {u.batch_time || "Not Set"}
+                      </span>
                     </td>
                     <td className="col-status" style={{ padding: "15px" }}>
                       <span style={{
@@ -252,6 +266,25 @@ export default function AdminDashboard() {
                   <option value="Silver">Silver</option>
                   <option value="Gold">Gold</option>
                   <option value="Platinum">Platinum</option>
+                </select>
+              </div>
+              <div>
+                <label className="modern-label">Batch Timing</label>
+                <select
+                  className="modern-input"
+                  value={editForm.batch_time || ''}
+                  onChange={e => setEditForm({ ...editForm, batch_time: e.target.value })}
+                >
+                  <option value="">Select Batch</option>
+                  <option value="6:00 AM">6:00 AM - Morning Early</option>
+                  <option value="7:00 AM">7:00 AM - Morning</option>
+                  <option value="8:00 AM">8:00 AM - Morning</option>
+                  <option value="9:00 AM">9:00 AM - Late Morning</option>
+                  <option value="10:00 AM">10:00 AM - Late Morning</option>
+                  <option value="5:00 PM">5:00 PM - Evening</option>
+                  <option value="6:00 PM">6:00 PM - Evening</option>
+                  <option value="7:00 PM">7:00 PM - Evening</option>
+                  <option value="8:00 PM">8:00 PM - Night</option>
                 </select>
               </div>
             </div>
