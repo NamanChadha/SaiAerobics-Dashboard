@@ -85,7 +85,15 @@ export default function Dashboard() {
 
       <header className="dash-header" style={{ justifyContent: "center", textAlign: "center" }}>
         <div>
-          <p className="welcome" style={{ margin: 0 }}>Good to see you 🌸</p>
+          <p className="welcome" style={{ margin: 0 }}>
+            {(() => {
+              const hour = new Date().getHours();
+              if (hour < 12) return "Good Morning 🌅";
+              if (hour < 17) return "Good Afternoon ☀️";
+              if (hour < 21) return "Good Evening 🌆";
+              return "Good Night 🌙";
+            })()}
+          </p>
           <h2 style={{ margin: "5px 0 0 0", fontSize: "1.4rem" }}>{userName}</h2>
         </div>
       </header>
