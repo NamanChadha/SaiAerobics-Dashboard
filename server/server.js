@@ -149,14 +149,14 @@ app.get("/auth/google", passport.authenticate("google", {
 
 // GET /auth/google/callback - Handle Google OAuth callback
 app.get("/auth/google/callback",
-  passport.authenticate("google", { session: false, failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=google_auth_failed` }),
+  passport.authenticate("google", { session: false, failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=google_auth_failed` }),
   (req, res) => {
     try {
       const user = req.user;
 
       // Check if account is frozen
       if (!user.active) {
-        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=account_frozen`);
+        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=account_frozen`);
       }
 
       // Generate JWT token
@@ -167,16 +167,106 @@ app.get("/auth/google/callback",
       );
 
       // Redirect to frontend with token and user info
-      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
       const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&name=${encodeURIComponent(user.name)}&role=${user.role || "member"}`;
 
       res.redirect(redirectUrl);
     } catch (err) {
       console.error("Google Callback Error:", err);
-      res.redirect(`${process.env.FRONTEND_URL || "http://localhost:3000"}/login?error=server_error`);
+      res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=server_error`);
     }
   }
 );
+
+// NUTRITION: Generate Meal Plan (Rule-Based + Daily Eatables)
+app.post("/nutrition-plan", authenticate, async (req, res) => {
+  try {
+    const { goal, eatables } = req.body;
+    // eatables is an array of strings or objects { name, timeSlot }
+
+    // Simple Template Logic
+    const basePlan = {
+      "Weight Loss": {
+        Morning: ["Oats with water", "Boiled Eggs", "Green Tea"],
+        Afternoon: ["Grilled Chicken Salad", "Brown Rice", "Dal"],
+        Evening: ["Roasted Chana", "Black Coffee"],
+        Night: ["Soup", "Boiled Vegetables"]
+      },
+      "Muscle Gain": {
+        Morning: ["Oats with milk & banana", "4 Eggs", "Peanut Butter Toast"],
+        Afternoon: ["Chicken/Paneer Curry", "Rice", "Curd", "Salad"],
+        Evening: ["Protein Shake", "Banana"],
+        Night: ["Fish/Paneer", "Roti", "Dal"]
+      },
+      "Maintenance": {
+        Morning: ["Poha/Upma", "Milk/Tea"],
+        Afternoon: ["Roti", "Sabzi", "Dal", "Rice"],
+        Evening: ["Tea", "Biscuits/Nuts"],
+        Night: ["Roti", "Sabzi", "Salad"]
+      }
+    };
+
+    const selectedPlan = JSON.parse(JSON.stringify(basePlan[goal || "Maintenance"]));
+
+    // Integrate User's Daily Eatables (Constraint/Add-on)
+    if (eatables && Array.isArray(eatables)) {
+      eatables.forEach(item => {
+        // item = { name: "Chai", timeSlot: "Morning" }
+        if (item.timeSlot && selectedPlan[item.timeSlot]) {
+          // Add to beginning or end? User said "add daily eatables as a constraint"
+          // We'll append them as "Your Regulars"
+          if (!selectedPlan[item.timeSlot].includes(item.name)) {
+            selectedPlan[item.timeSlot].push(`${item.name} (Your Regular)`);
+          }
+        }
+      });
+    }
+
+    res.json({ plan: selectedPlan });
+  } catch (err) {
+    console.error("Meal Plan Error:", err);
+    res.status(500).json({ error: "Failed to generate plan" });
+  }
+});
+
+// SHARE: Email Meal Plan
+app.post("/share/email", authenticate, async (req, res) => {
+  try {
+    const { planHtml, goal } = req.body;
+    const userEmail = req.user.email || (await pool.query("SELECT email FROM users WHERE id=$1", [req.user.id])).rows[0].email;
+
+    if (!process.env.EMAIL_USER) {
+      return res.json({ message: "Email service not configured (Dev Mode)" });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+    });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: userEmail,
+      subject: `Your ${goal} Meal Plan - Sai Aerobics 🥗`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+          <h2 style="color: #6366f1;">Your Customized Meal Plan</h2>
+          <p>Goal: <strong>${goal}</strong></p>
+          <hr>
+          ${planHtml}
+          <br>
+          <p>Stay Consistent! 💪</p>
+          <p>Sai Aerobics Team</p>
+        </div>
+      `
+    });
+
+    res.json({ message: "Meal plan sent to your email!" });
+  } catch (err) {
+    console.error("Email Share Error:", err);
+    res.status(500).json({ error: "Failed to send email" });
+  }
+});
 
 // AUTH: Register (Allowed for public signup)
 app.post("/auth/register", async (req, res) => {
