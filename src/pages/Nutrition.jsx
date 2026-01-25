@@ -4,9 +4,11 @@ import "../styles/dashboard.css";
 export default function Nutrition() {
   const [eatables, setEatables] = useState([]);
   const [newItem, setNewItem] = useState("");
+  const [newNote, setNewNote] = useState("");
   const [timeSlot, setTimeSlot] = useState("Morning");
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState("");
+  const [editNote, setEditNote] = useState("");
 
   // Time slot options with emojis
   const timeSlots = [
@@ -38,12 +40,14 @@ export default function Nutrition() {
     const item = {
       id: Date.now(),
       name: newItem.trim(),
+      note: newNote.trim(),
       timeSlot: timeSlot,
       createdAt: new Date().toISOString()
     };
 
     setEatables([...eatables, item]);
     setNewItem("");
+    setNewNote("");
   };
 
   const handleDeleteItem = (id) => {
@@ -54,21 +58,24 @@ export default function Nutrition() {
     const item = eatables.find(e => e.id === id);
     setEditingId(id);
     setEditText(item.name);
+    setEditNote(item.note || "");
   };
 
   const handleSaveEdit = (id) => {
     if (!editText.trim()) return;
 
     setEatables(eatables.map(item =>
-      item.id === id ? { ...item, name: editText.trim() } : item
+      item.id === id ? { ...item, name: editText.trim(), note: editNote.trim() } : item
     ));
     setEditingId(null);
     setEditText("");
+    setEditNote("");
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditText("");
+    setEditNote("");
   };
 
   // Group eatables by time slot
@@ -119,7 +126,23 @@ export default function Nutrition() {
                 fontSize: "1rem",
                 outline: "none"
               }}
-              onKeyPress={(e) => e.key === "Enter" && handleAddItem()}
+            />
+
+            <textarea
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Add a note (optional) - e.g., 1 cup with sugar, after workout..."
+              rows={2}
+              style={{
+                padding: "14px 16px",
+                borderRadius: "12px",
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                fontSize: "0.95rem",
+                outline: "none",
+                resize: "vertical",
+                fontFamily: "inherit"
+              }}
             />
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -210,14 +233,10 @@ export default function Nutrition() {
                     <div key={item.id} style={{
                       background: "var(--card)",
                       padding: "12px 16px",
-                      borderRadius: "10px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "12px"
+                      borderRadius: "10px"
                     }}>
                       {editingId === item.id ? (
-                        <>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                           <input
                             type="text"
                             value={editText}
@@ -231,71 +250,101 @@ export default function Nutrition() {
                               fontSize: "0.95rem"
                             }}
                             autoFocus
-                            onKeyPress={(e) => {
-                              if (e.key === "Enter") handleSaveEdit(item.id);
+                          />
+                          <textarea
+                            value={editNote}
+                            onChange={(e) => setEditNote(e.target.value)}
+                            placeholder="Add a note..."
+                            rows={2}
+                            style={{
+                              padding: "8px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid var(--border)",
+                              outline: "none",
+                              fontSize: "0.9rem",
+                              resize: "vertical",
+                              fontFamily: "inherit"
                             }}
                           />
-                          <button
-                            onClick={() => handleSaveEdit(item.id)}
-                            style={{
-                              padding: "6px 12px",
-                              borderRadius: "8px",
-                              border: "none",
-                              background: "#4CAF50",
-                              color: "white",
-                              cursor: "pointer",
-                              fontSize: "0.85rem"
-                            }}
-                          >
-                            ✓
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            style={{
-                              padding: "6px 12px",
-                              borderRadius: "8px",
-                              border: "1px solid var(--border)",
-                              background: "var(--bg)",
-                              cursor: "pointer",
-                              fontSize: "0.85rem"
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </>
+                          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                            <button
+                              onClick={() => handleSaveEdit(item.id)}
+                              style={{
+                                padding: "8px 16px",
+                                borderRadius: "8px",
+                                border: "none",
+                                background: "#4CAF50",
+                                color: "white",
+                                cursor: "pointer",
+                                fontSize: "0.85rem",
+                                fontWeight: "500"
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={handleCancelEdit}
+                              style={{
+                                padding: "8px 16px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                background: "var(--bg)",
+                                cursor: "pointer",
+                                fontSize: "0.85rem"
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
                       ) : (
-                        <>
-                          <span style={{ flex: 1, fontWeight: "500" }}>{item.name}</span>
-                          <button
-                            onClick={() => handleEditItem(item.id)}
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: "8px",
-                              border: "1px solid var(--border)",
-                              background: "var(--bg)",
-                              cursor: "pointer",
-                              fontSize: "0.85rem"
-                            }}
-                            title="Edit"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            style={{
-                              padding: "6px 10px",
-                              borderRadius: "8px",
-                              border: "none",
-                              background: "rgba(239, 68, 68, 0.1)",
-                              color: "#EF4444",
-                              cursor: "pointer",
-                              fontSize: "0.85rem"
-                            }}
-                            title="Delete"
-                          >
-                            🗑️
-                          </button>
-                        </>
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                          <div style={{ flex: 1 }}>
+                            <span style={{ fontWeight: "500", display: "block" }}>{item.name}</span>
+                            {item.note && (
+                              <span style={{
+                                fontSize: "0.85rem",
+                                color: "var(--text-muted)",
+                                display: "block",
+                                marginTop: "4px",
+                                fontStyle: "italic"
+                              }}>
+                                📝 {item.note}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              onClick={() => handleEditItem(item.id)}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: "8px",
+                                border: "1px solid var(--border)",
+                                background: "var(--bg)",
+                                cursor: "pointer",
+                                fontSize: "0.85rem"
+                              }}
+                              title="Edit"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDeleteItem(item.id)}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: "8px",
+                                border: "none",
+                                background: "rgba(239, 68, 68, 0.1)",
+                                color: "#EF4444",
+                                cursor: "pointer",
+                                fontSize: "0.85rem"
+                              }}
+                              title="Delete"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}
