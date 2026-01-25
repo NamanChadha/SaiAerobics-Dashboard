@@ -1,361 +1,348 @@
 import { useState, useEffect } from "react";
-import { generateMealPlan, shareMealPlanEmail, getUserProfile, createPaymentOrder, verifyPaymentSignature } from "../api";
 import "../styles/dashboard.css";
 
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
-
 export default function Nutrition() {
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [plan, setPlan] = useState([]);
-  const [sendingEmail, setSendingEmail] = useState(false);
+  const [eatables, setEatables] = useState([]);
+  const [newItem, setNewItem] = useState("");
+  const [timeSlot, setTimeSlot] = useState("Morning");
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
 
-  // Payment State
-  const [locked, setLocked] = useState(true);
-  const [profileLoading, setProfileLoading] = useState(true);
+  // Time slot options with emojis
+  const timeSlots = [
+    { value: "Morning", emoji: "🌅", label: "Morning" },
+    { value: "Afternoon", emoji: "☀️", label: "Afternoon" },
+    { value: "Evening", emoji: "🌆", label: "Evening" },
+    { value: "Night", emoji: "🌙", label: "Night" }
+  ];
 
-  // Load draft from storage or default
-  const [formData, setFormData] = useState(() => {
-    const saved = localStorage.getItem("nutrition_draft");
-    return saved ? JSON.parse(saved) : {
-      height: "",
-      weight: "",
-      goal: "Lose Weight",
-      diet: "Vegetarian",
-      allergies: ""
-    };
-  });
-
+  // Load from localStorage on mount
   useEffect(() => {
-    // Load Razorpay Script
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    document.body.appendChild(script);
-
-    checkSubscription();
+    const saved = localStorage.getItem("daily_eatables");
+    if (saved) {
+      setEatables(JSON.parse(saved));
+    }
   }, []);
 
-  async function checkSubscription() {
-    try {
-      setProfileLoading(true);
-      const user = await getUserProfile();
+  // Save to localStorage whenever eatables change
+  useEffect(() => {
+    localStorage.setItem("daily_eatables", JSON.stringify(eatables));
+  }, [eatables]);
 
-      const isPremium = ["Gold", "Platinum"].includes(user.tier);
-      const isPaid = user.payment_status === "PAID";
-      const notExpired = user.expiry_date && new Date(user.expiry_date) > new Date();
-
-      if (isPremium || (isPaid && notExpired)) {
-        setLocked(false);
-      } else {
-        setLocked(true);
-      }
-    } catch (err) {
-      console.error("Subscription Check Failed:", err);
-    } finally {
-      setProfileLoading(false);
-    }
-  }
-
-  const handlePayment = async () => {
-    try {
-      // Create order using new endpoint
-      const orderResponse = await createPaymentOrder(500); // ₹500
-
-      if (!orderResponse.success || !orderResponse.order_id) {
-        alert(orderResponse.error || "Server error. Please try again.");
-        return;
-      }
-
-      // Get user profile for prefill
-      let userName = localStorage.getItem("user_name") || "User";
-      let userEmail = "user@example.com";
-      let userPhone = "9999999999";
-
-      try {
-        const profile = await getUserProfile();
-        userEmail = profile.email || userEmail;
-        userPhone = profile.phone || userPhone;
-      } catch (e) {
-        console.log("Could not fetch profile for prefill");
-      }
-
-      const options = {
-        key: orderResponse.key_id, // Key ID from backend response
-        amount: orderResponse.amount,
-        currency: orderResponse.currency,
-        name: "Sai Aerobics",
-        description: "Personalised Meal Plan Subscription",
-        order_id: orderResponse.order_id,
-        handler: async function (response) {
-          try {
-            const verify = await verifyPaymentSignature({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature
-            });
-
-            if (verify.success) {
-              alert("Payment Successful! Unlocking Plan...");
-              checkSubscription(); // Refresh state
-            } else {
-              alert(verify.error || "Payment Verification Failed");
-            }
-          } catch (e) {
-            alert("Payment Verification Error: " + e.message);
-          }
-        },
-        prefill: {
-          name: userName,
-          email: userEmail,
-          contact: userPhone
-        },
-        theme: { color: "#E85D75" } // Using app's primary color
-      };
-
-      const rzp1 = new window.Razorpay(options);
-      rzp1.open();
-
-    } catch (err) {
-      alert("Payment Failed to Start: " + err.message);
-    }
-  };
-
-  async function handleSubmit() {
-    if (!formData.weight || !formData.height) {
-      alert("Please enter both Weight and Height.");
-      return;
-    }
-    if (formData.weight < 20 || formData.weight > 300) {
-      alert("Please enter a valid weight between 20kg and 300kg.");
+  const handleAddItem = () => {
+    if (!newItem.trim()) {
+      alert("Please enter an item name");
       return;
     }
 
-    setLoading(true);
-    try {
-      const res = await generateMealPlan(formData);
-      if (res.plan) {
-        setPlan(res.plan);
-        setStep(3);
-      } else {
-        alert(res.message || "Failed to generate plan.");
-      }
-    } catch (err) {
-      alert("Error: " + err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+    const item = {
+      id: Date.now(),
+      name: newItem.trim(),
+      timeSlot: timeSlot,
+      createdAt: new Date().toISOString()
+    };
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.setTextColor(98, 0, 234);
-    doc.text("Sai Aerobics - Personalized Meal Plan", 14, 20);
-
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Goal: ${formData.goal} | Diet: ${formData.diet}`, 14, 30);
-    doc.text(`Weight: ${formData.weight}kg | Height: ${formData.height}`, 14, 36);
-
-    // Prepare table data including calories
-    const tableData = plan.map(day => [
-      day.day,
-      `${day.breakfast || '-'} (${day.calories_breakfast || ''})`,
-      `${day.lunch || '-'} (${day.calories_lunch || ''})`,
-      `${day.snack || '-'} (${day.calories_snack || ''})`,
-      `${day.dinner || '-'} (${day.calories_dinner || ''})`
-    ]);
-
-    autoTable(doc, {
-      startY: 45,
-      head: [['Day', 'Breakfast', 'Lunch', 'Snack', 'Dinner']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [98, 0, 234] },
-      styles: { fontSize: 8, cellPadding: 2 }
-    });
-
-    doc.save("SaiAerobics_MealPlan.pdf");
+    setEatables([...eatables, item]);
+    setNewItem("");
   };
 
-  const handleShareEmail = async () => {
-    setSendingEmail(true);
-    // Construct simple HTML table for email
-    let html = `<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
-        <tr style="background:#7c6cf2; color:white;">
-            <th>Day</th><th>Breakfast</th><th>Lunch</th><th>Snack</th><th>Dinner</th>
-        </tr>`;
-
-    plan.forEach(p => {
-      html += `<tr>
-            <td><strong>${p.day}</strong></td>
-            <td>${p.breakfast} <br><small>${p.calories_breakfast}</small></td>
-            <td>${p.lunch} <br><small>${p.calories_lunch}</small></td>
-            <td>${p.snack} <br><small>${p.calories_snack}</small></td>
-            <td>${p.dinner} <br><small>${p.calories_dinner}</small></td>
-          </tr>`;
-    });
-    html += `</table>`;
-
-    try {
-      const res = await shareMealPlanEmail(html, formData.goal);
-      if (res.success) alert(res.message);
-      else alert(res.error || "Failed");
-    } catch (e) {
-      alert("Email failed: " + e.message);
-    } finally {
-      setSendingEmail(false);
-    }
+  const handleDeleteItem = (id) => {
+    setEatables(eatables.filter(item => item.id !== id));
   };
 
-  if (profileLoading) return <div className="dash"><p className="modal-desc">Checking Subscription...</p></div>;
+  const handleEditItem = (id) => {
+    const item = eatables.find(e => e.id === id);
+    setEditingId(id);
+    setEditText(item.name);
+  };
+
+  const handleSaveEdit = (id) => {
+    if (!editText.trim()) return;
+
+    setEatables(eatables.map(item =>
+      item.id === id ? { ...item, name: editText.trim() } : item
+    ));
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
+  };
+
+  // Group eatables by time slot
+  const groupedEatables = timeSlots.map(slot => ({
+    ...slot,
+    items: eatables.filter(item => item.timeSlot === slot.value)
+  }));
 
   return (
     <div className="dash">
       <header className="dash-header" style={{ justifyContent: 'center' }}>
-        <h2>AI Nutritionist 🥗</h2>
+        <h2>Daily Eatables 🍽️</h2>
       </header>
 
-      <div style={{ position: "relative" }}> {/* Container for potential overlay */}
+      <div style={{
+        background: "var(--card)",
+        padding: "24px",
+        borderRadius: "24px",
+        boxShadow: "0 8px 30px rgba(0,0,0,0.04)",
+        marginBottom: "20px"
+      }}>
+        <p style={{ color: "var(--text-muted)", marginBottom: "20px", textAlign: "center" }}>
+          Track your daily food and drinks. Add items you consume regularly.
+        </p>
 
-        {/* LOCK OVERLAY */}
-        {locked && (
-          <div style={{
-            position: "absolute",
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(255, 255, 255, 0.6)",
-            backdropFilter: "blur(8px)",
-            zIndex: 10,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "24px"
-          }}>
-            <div style={{
-              background: "white",
-              padding: "40px",
-              borderRadius: "20px",
-              boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
-              textAlign: "center",
-              maxWidth: "400px",
-              border: "1px solid #eee"
-            }}>
-              <h2 style={{ fontSize: "1.8rem", marginBottom: "10px", color: "#6200ea" }}>🔒 Premium Content</h2>
-              <p style={{ color: "#666", marginBottom: "24px", lineHeight: "1.5" }}>
-                Your personalized meal plan is locked. Please subscribe to unlock AI-powered nutrition plans.
-              </p>
-              <div style={{ fontSize: "2rem", fontWeight: "bold", marginBottom: "20px", color: "#333" }}>
-                ₹500<span style={{ fontSize: "1rem", fontWeight: "normal", color: "#888" }}>/month</span>
-              </div>
-              <button
-                onClick={handlePayment}
-                style={{
-                  background: "#6200ea", color: "white", border: "none",
-                  padding: "16px 32px", fontSize: "1.1rem", borderRadius: "50px",
-                  cursor: "pointer", boxShadow: "0 10px 20px rgba(98, 0, 234, 0.3)",
-                  transition: "transform 0.2s"
-                }}
-              >
-                Unlock for ₹500
-              </button>
+        {/* Add New Item Form */}
+        <div style={{
+          background: "var(--bg)",
+          padding: "20px",
+          borderRadius: "16px",
+          marginBottom: "24px"
+        }}>
+          <h3 style={{ marginTop: 0, marginBottom: "16px", fontSize: "1.1rem" }}>
+            ➕ Add New Item
+          </h3>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <input
+              type="text"
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              placeholder="e.g., Chai, Green Tea, Almonds..."
+              style={{
+                padding: "14px 16px",
+                borderRadius: "12px",
+                border: "1px solid var(--border)",
+                background: "var(--card)",
+                fontSize: "1rem",
+                outline: "none"
+              }}
+              onKeyPress={(e) => e.key === "Enter" && handleAddItem()}
+            />
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              {timeSlots.map(slot => (
+                <button
+                  key={slot.value}
+                  onClick={() => setTimeSlot(slot.value)}
+                  style={{
+                    flex: 1,
+                    minWidth: "80px",
+                    padding: "12px 8px",
+                    borderRadius: "12px",
+                    border: timeSlot === slot.value ? "2px solid var(--primary)" : "1px solid var(--border)",
+                    background: timeSlot === slot.value ? "rgba(232, 93, 117, 0.1)" : "var(--card)",
+                    cursor: "pointer",
+                    fontWeight: timeSlot === slot.value ? "600" : "400",
+                    color: timeSlot === slot.value ? "var(--primary)" : "var(--text-main)",
+                    transition: "all 0.2s"
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>{slot.emoji}</span>
+                  <br />
+                  <span style={{ fontSize: "0.85rem" }}>{slot.label}</span>
+                </button>
+              ))}
             </div>
+
+            <button
+              onClick={handleAddItem}
+              style={{
+                padding: "14px",
+                borderRadius: "12px",
+                border: "none",
+                background: "linear-gradient(135deg, #E85D75, #FF8A9B)",
+                color: "white",
+                fontWeight: "600",
+                fontSize: "1rem",
+                cursor: "pointer",
+                boxShadow: "0 4px 15px rgba(232, 93, 117, 0.3)",
+                transition: "transform 0.2s"
+              }}
+            >
+              Add Item
+            </button>
+          </div>
+        </div>
+
+        {/* Display Items by Time Slot */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {groupedEatables.map(group => (
+            <div key={group.value} style={{
+              background: "var(--bg)",
+              padding: "16px",
+              borderRadius: "16px",
+              borderLeft: `4px solid ${group.value === "Morning" ? "#FFB347" :
+                  group.value === "Afternoon" ? "#4ECDC4" :
+                    group.value === "Evening" ? "#9B59B6" :
+                      "#3498DB"
+                }`
+            }}>
+              <h4 style={{
+                margin: "0 0 12px 0",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "var(--text-main)"
+              }}>
+                <span style={{ fontSize: "1.3rem" }}>{group.emoji}</span>
+                {group.label}
+                <span style={{
+                  fontSize: "0.8rem",
+                  background: "var(--card)",
+                  padding: "2px 8px",
+                  borderRadius: "20px",
+                  color: "var(--text-muted)"
+                }}>
+                  {group.items.length} items
+                </span>
+              </h4>
+
+              {group.items.length === 0 ? (
+                <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", margin: 0, fontStyle: "italic" }}>
+                  No items added for {group.label.toLowerCase()}
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {group.items.map(item => (
+                    <div key={item.id} style={{
+                      background: "var(--card)",
+                      padding: "12px 16px",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "12px"
+                    }}>
+                      {editingId === item.id ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            style={{
+                              flex: 1,
+                              padding: "8px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid var(--primary)",
+                              outline: "none",
+                              fontSize: "0.95rem"
+                            }}
+                            autoFocus
+                            onKeyPress={(e) => {
+                              if (e.key === "Enter") handleSaveEdit(item.id);
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(item.id)}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              border: "none",
+                              background: "#4CAF50",
+                              color: "white",
+                              cursor: "pointer",
+                              fontSize: "0.85rem"
+                            }}
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: "8px",
+                              border: "1px solid var(--border)",
+                              background: "var(--bg)",
+                              cursor: "pointer",
+                              fontSize: "0.85rem"
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ flex: 1, fontWeight: "500" }}>{item.name}</span>
+                          <button
+                            onClick={() => handleEditItem(item.id)}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: "8px",
+                              border: "1px solid var(--border)",
+                              background: "var(--bg)",
+                              cursor: "pointer",
+                              fontSize: "0.85rem"
+                            }}
+                            title="Edit"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.id)}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: "8px",
+                              border: "none",
+                              background: "rgba(239, 68, 68, 0.1)",
+                              color: "#EF4444",
+                              cursor: "pointer",
+                              fontSize: "0.85rem"
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Summary */}
+        {eatables.length > 0 && (
+          <div style={{
+            marginTop: "24px",
+            padding: "16px",
+            background: "linear-gradient(135deg, rgba(232, 93, 117, 0.1), rgba(255, 138, 155, 0.1))",
+            borderRadius: "12px",
+            textAlign: "center"
+          }}>
+            <p style={{ margin: 0, color: "var(--text-main)" }}>
+              <strong>Total Items:</strong> {eatables.length} daily eatables tracked
+            </p>
           </div>
         )}
 
-        <div style={{
-          background: "var(--card)",
-          padding: "24px",
-          borderRadius: "24px",
-          boxShadow: "0 8px 30px rgba(0,0,0,0.04)",
-          filter: locked ? "blur(4px)" : "none", // Additional visual cue
-          pointerEvents: locked ? "none" : "auto",
-          userSelect: locked ? "none" : "auto"
-        }}>
-          {/* Form Step */}
-          {step === 1 && (
-            <div className="fade-in">
-              <p className="modal-desc">Get a personalized 7-day Indian meal plan generated by AI.</p>
-
-              <div className="form-group">
-                <label>Current Weight (kg) <span style={{ color: 'red' }}>*</span></label>
-                <input
-                  type="number"
-                  min="20"
-                  max="300"
-                  required
-                  className="styled-input"
-                  value={formData.weight}
-                  onChange={e => setFormData({ ...formData, weight: e.target.value })}
-                  placeholder="e.g. 65"
-                />
-              </div>
-              <div className="form-group">
-                <label>Height <span style={{ color: 'red' }}>*</span></label>
-                <input
-                  type="text"
-                  required
-                  className="styled-input"
-                  value={formData.height}
-                  onChange={e => setFormData({ ...formData, height: e.target.value })}
-                  placeholder="e.g. 5'5 or 165cm"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Goal</label>
-                <select className="styled-input" value={formData.goal} onChange={e => setFormData({ ...formData, goal: e.target.value })}>
-                  <option>Lose Weight</option><option>Maintain Weight</option><option>Gain Muscle</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Diet Type</label>
-                <select className="styled-input" value={formData.diet} onChange={e => setFormData({ ...formData, diet: e.target.value })}>
-                  <option>Vegetarian</option><option>Eggetarian</option><option>Non-Vegetarian</option><option>Vegan</option>
-                </select>
-              </div>
-
-              <div className="form-group"><label>Allergies (Optional)</label><input type="text" className="styled-input" value={formData.allergies} onChange={e => setFormData({ ...formData, allergies: e.target.value })} placeholder="e.g. Peanuts, Dairy" /></div>
-
-              <button className="big-log-btn" onClick={handleSubmit} style={{ marginTop: "20px", background: "var(--primary-purple)", color: "white" }} disabled={loading}>
-                {loading ? "Generating Plan..." : "Generate Meal Plan ✨"}
-              </button>
-            </div>
-          )}
-
-          {/* Result Step */}
-          {step === 3 && (
-            <div className="fade-in">
-              <h3 style={{ marginTop: 0, color: "var(--success)" }}>Plan Ready! ✅</h3>
-
-              <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" }}>
-                <button onClick={handleDownloadPDF} style={{ flex: 1, padding: "10px", borderRadius: "12px", border: "none", background: "#ef4444", color: "white", cursor: "pointer", fontWeight: "600" }}>Download PDF 📥</button>
-                <button onClick={handleShareEmail} disabled={sendingEmail} style={{ flex: 1, padding: "10px", borderRadius: "12px", border: "1px solid var(--primary-purple)", background: "rgba(98, 0, 234, 0.1)", color: "var(--primary-purple)", cursor: "pointer", fontWeight: "600" }}>
-                  {sendingEmail ? "Sending..." : "Email to Me 📧"}
-                </button>
-              </div>
-
-              <div className="meal-grid" style={{ display: "grid", gap: "15px", maxHeight: "500px", overflowY: "auto" }}>
-                {Array.isArray(plan) && plan.map((day, i) => (
-                  <div key={i} style={{ background: "var(--bg)", padding: "15px", borderRadius: "12px", borderLeft: "4px solid var(--primary-purple)" }}>
-                    <strong style={{ display: "block", fontSize: "1.1rem", marginBottom: "8px", color: "var(--primary-purple)" }}>{day.day}</strong>
-                    <div style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: "8px", fontSize: "0.9rem", alignItems: "center" }}>
-                      <span style={{ color: "var(--text-muted)" }}>🍳 Breakfast:</span> <span>{day.breakfast}</span> <span className="cal-badge">{day.calories_breakfast}</span>
-                      <span style={{ color: "var(--text-muted)" }}>🍛 Lunch:</span> <span>{day.lunch}</span> <span className="cal-badge">{day.calories_lunch}</span>
-                      <span style={{ color: "var(--text-muted)" }}>🥨 Snack:</span> <span>{day.snack}</span> <span className="cal-badge">{day.calories_snack}</span>
-                      <span style={{ color: "var(--text-muted)" }}>🍲 Dinner:</span> <span>{day.dinner}</span> <span className="cal-badge">{day.calories_dinner}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <button className="primary-btn" onClick={() => setStep(1)} style={{ marginTop: "20px", width: "100%", padding: "12px", background: "var(--text-main)", color: "var(--bg)", border: "none", borderRadius: "12px", fontWeight: "600", cursor: "pointer" }}>Create New Plan</button>
-            </div>
-          )}
-        </div>
+        {/* Clear All Button */}
+        {eatables.length > 0 && (
+          <button
+            onClick={() => {
+              if (confirm("Are you sure you want to clear all items?")) {
+                setEatables([]);
+              }
+            }}
+            style={{
+              marginTop: "16px",
+              width: "100%",
+              padding: "12px",
+              borderRadius: "12px",
+              border: "1px solid #EF4444",
+              background: "transparent",
+              color: "#EF4444",
+              fontWeight: "500",
+              cursor: "pointer"
+            }}
+          >
+            Clear All Items
+          </button>
+        )}
       </div>
     </div>
   );
