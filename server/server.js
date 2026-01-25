@@ -64,12 +64,11 @@ const razorpay = new Razorpay({
 const isDev = process.env.NODE_ENV !== "production";
 
 // Passport Google OAuth 2.0 Strategy
+// Passport Google OAuth 2.0 Strategy
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  // Dynamic Callback URL: Uses Env var, or localhost in dev, or prod URL
-  callbackURL: process.env.GOOGLE_CALLBACK_URL ||
-    (isDev ? "http://localhost:5000/auth/google/callback" : "https://api.saiaerobics.in/auth/google/callback")
+  callbackURL: process.env.GOOGLE_CALLBACK_URL
 },
   async (accessToken, refreshToken, profile, done) => {
     try {
@@ -321,7 +320,7 @@ app.post("/auth/login", loginLimiter, async (req, res) => {
   }
 });
 
-// AUTH: Forgot Password (OTP Based)
+// AUTH: Forgot Password (Send OTP)
 app.post("/auth/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -332,22 +331,18 @@ app.post("/auth/forgot-password", async (req, res) => {
 
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const today = new Date();
-    const expires = new Date(today.getTime() + 10 * 60000); // 10 Minutes Expiry
+    const expires = new Date(Date.now() + 10 * 60000); // 10 Minutes Expiry
 
     await pool.query(
       "UPDATE users SET reset_token=$1, reset_expires=$2 WHERE LOWER(email)=$3",
       [otp, expires, lowerEmail]
     );
 
-    // If email credentials are missing, return OTP for testing
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.log(`⚠️ Dev Mode: OTP for ${lowerEmail} is ${otp}`);
-      return res.json({ message: "Dev Mode: OTP generated.", debug_otp: otp });
-    }
-
+    // Nodemailer Config from Env
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: process.env.EMAIL_HOST,
+      port: process.env.EMAIL_PORT,
+      secure: process.env.EMAIL_PORT == 465, // true for 465, false for other ports usually (587)
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
     });
 
@@ -355,7 +350,7 @@ app.post("/auth/forgot-password", async (req, res) => {
       await transporter.sendMail({
         from: process.env.EMAIL_USER,
         to: lowerEmail,
-        subject: "Your Password Reset OTP - Sai Aerobics",
+        subject: "Password Reset OTP - Sai Aerobics",
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 10px; text-align: center;">
             <h2 style="color: #6366f1;">Password Reset</h2>
@@ -366,10 +361,12 @@ app.post("/auth/forgot-password", async (req, res) => {
           </div>
         `
       });
-      res.json({ message: "OTP sent to your email!" });
+      res.json({ message: "OTP sent successfully" });
     } catch (emailErr) {
       console.error("Nodemailer Error:", emailErr);
-      res.json({ message: "Email failed. Here is your OTP:", debug_otp: otp });
+      // If email fails, return error 500 so frontend knows, OR return dev otp if needed
+      // Prompt says: "If email sending fails, log the error and return a proper error response"
+      res.status(500).json({ error: "Failed to send email. Verification code not sent." });
     }
 
   } catch (err) {
@@ -378,27 +375,40 @@ app.post("/auth/forgot-password", async (req, res) => {
   }
 });
 
+// AUTH: Verify OTP
+app.post("/auth/verify-otp", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const lowerEmail = email.toLowerCase().trim();
+    const user = await pool.query(
+      "SELECT * FROM users WHERE LOWER(email)=$1 AND reset_token=$2 AND reset_expires > NOW()",
+      [lowerEmail, otp]
+    );
+
+    if (user.rowCount === 0) return res.status(400).json({ error: "Invalid or expired OTP" });
+
+    res.json({ message: "OTP Verified", valid: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // AUTH: Reset Password (Verify OTP & Update)
 app.post("/auth/reset-password", async (req, res) => {
   try {
     const { email, otp, password } = req.body;
     const lowerEmail = email.toLowerCase().trim();
-    const now = new Date();
 
-    // Verify OTP
-    const user = await pool.query(
-      "SELECT * FROM users WHERE LOWER(email)=$1 AND reset_token=$2 AND reset_expires > $3",
-      [lowerEmail, otp, now]
-    );
-
-    if (user.rowCount === 0) return res.status(400).json({ error: "Invalid or expired OTP" });
-
-    // Update Password
+    // Create hash
     const hash = await bcrypt.hash(password, 10);
-    await pool.query(
-      "UPDATE users SET password=$1, reset_token=NULL, reset_expires=NULL WHERE id=$2",
-      [hash, user.rows[0].id]
+
+    // Verify & Update in one go to ensure atomicity or Check then Update
+    const result = await pool.query(
+      "UPDATE users SET password=$1, reset_token=NULL, reset_expires=NULL WHERE LOWER(email)=$2 AND reset_token=$3 AND reset_expires > NOW() RETURNING id",
+      [hash, lowerEmail, otp]
     );
+
+    if (result.rowCount === 0) return res.status(400).json({ error: "Invalid or expired OTP" });
 
     res.json({ message: "Password updated successfully! Please login." });
   } catch (err) {

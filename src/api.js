@@ -262,6 +262,15 @@ export async function forgotPassword(email) {
   return res.json();
 }
 
+export async function verifyOtp(email, otp) {
+  const res = await fetch(`${API_URL}/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, otp })
+  });
+  return res.json();
+}
+
 export async function resetPassword(email, otp, password) {
   const res = await fetch(`${API_URL}/auth/reset-password`, {
     method: "POST",
