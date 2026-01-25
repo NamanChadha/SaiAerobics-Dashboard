@@ -157,6 +157,15 @@ export async function submitFeedback(message) {
   return res.json();
 }
 
+export async function deleteUser(id) {
+  const res = await fetch(`${API_URL}/admin/users/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+  });
+  if (!res.ok) throw new Error("Failed to delete user");
+  return res.json();
+}
+
 export async function updateUserAdmin(id, data) {
   const res = await fetch(`${API_URL}/admin/users/${id}/update`, {
     method: "POST",

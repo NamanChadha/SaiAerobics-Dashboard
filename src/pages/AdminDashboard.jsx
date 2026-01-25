@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   getAdminStats, getAdminUsers, getAdminGraphs,
-  extendMembership, toggleUserActive, updateUserAdmin, overrideAttendance
+  extendMembership, toggleUserActive, updateUserAdmin, overrideAttendance, deleteUser
 } from "../api";
 import "../styles/dashboard.css";
 import { useNavigate } from "react-router-dom";
@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import {
   Users, TrendingUp, Calendar, AlertCircle, Search,
-  MoreVertical, Edit, UserX, UserCheck, Shield
+  MoreVertical, Shield
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -90,6 +90,22 @@ export default function AdminDashboard() {
       alert(`Attendance ${action === 'add' ? 'Marked' : 'Removed'} for today.`);
       fetchData();
     } catch (e) { alert(e.message); }
+  }
+
+  async function handleDeleteUser() {
+    if (!editingUser) return;
+    if (confirm(`Are you sure you want to PERMANENTLY DELETE ${editingUser.name}? This cannot be undone.`)) {
+      if (confirm("This will remove all attendance, streaks, and data. Confirm DELETE?")) {
+        try {
+          await deleteUser(editingUser.id);
+          alert("User deleted successfully.");
+          setEditingUser(null);
+          fetchData();
+        } catch (e) {
+          alert("Delete failed: " + e.message);
+        }
+      }
+    }
   }
 
   // Filter Users
@@ -305,6 +321,25 @@ export default function AdminDashboard() {
                 <button onClick={() => handleAttendanceOverride('add')} title="Mark Present" style={{ flex: 1, padding: '10px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer' }}>✅ Today</button>
                 <button onClick={() => handleAttendanceOverride('remove')} title="Remove" style={{ flex: 1, padding: '10px', background: '#f1f5f9', color: '#64748b', border: 'none', borderRadius: '12px', cursor: 'pointer' }}>❌</button>
               </div>
+            </div>
+
+            {/* Delete Button */}
+            <div style={{ marginTop: '10px' }}>
+              <button
+                onClick={handleDeleteUser}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: '1px solid #fee2e2',
+                  background: '#fef2f2',
+                  color: '#ef4444',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                🗑️ Delete Member
+              </button>
             </div>
 
             <div style={{ borderTop: '1px solid #eee', marginTop: '20px', paddingTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>

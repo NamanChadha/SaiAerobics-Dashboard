@@ -1056,6 +1056,34 @@ app.post("/admin/users/:id/toggle-active", authenticate, requireAdmin, async (re
   }
 });
 
+// ADMIN: Delete User (Permanent)
+app.delete("/admin/users/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Prevent deleting self (Admin)
+    if (parseInt(id) === req.user.id) {
+      return res.status(400).json({ error: "Cannot delete yourself" });
+    }
+
+    // Delete related data first (Manual cascade if FK not set to CASCADE)
+    await pool.query("DELETE FROM attendance WHERE user_id=$1", [id]);
+    await pool.query("DELETE FROM streaks WHERE user_id=$1", [id]);
+    await pool.query("DELETE FROM weight_logs WHERE user_id=$1", [id]);
+    await pool.query("DELETE FROM feedback WHERE user_id=$1", [id]);
+
+    // Delete User
+    const result = await pool.query("DELETE FROM users WHERE id=$1 RETURNING name", [id]);
+
+    if (result.rowCount === 0) return res.sendStatus(404);
+
+    res.json({ message: `Member ${result.rows[0].name} deleted successfully` });
+  } catch (err) {
+    console.error("Delete Error:", err);
+    res.status(500).json({ error: "Failed to delete user. Ensure all related records are cleared." });
+  }
+});
+
 // ADMIN: Get Graph Data
 app.get("/admin/graphs", authenticate, requireAdmin, async (req, res) => {
   try {
