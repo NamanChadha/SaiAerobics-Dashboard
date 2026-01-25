@@ -262,3 +262,7 @@ export async function googleAuth(userData) {
   return res.json();
 }
 
+// Aliases for compatibility with other files (e.g. BMI.jsx)
+export const createPaymentOrder = createOrder;
+export const verifyPaymentSignature = verifyPayment;
+
