@@ -7,7 +7,7 @@ import MembershipCard from "../components/MembershipCard";
 import StreakCalendar from "../components/StreakCalendar";
 import ProgressChart from "../components/ProgressChart";
 import NutritionModal from "../components/NutritionModal";
-import logoPlaceholder from "../assets/logo_placeholder.svg";
+import logo from "../assets/logo.png";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -60,7 +60,7 @@ export default function Dashboard() {
         gap: "10px"
       }}>
         <img
-          src={logoPlaceholder}
+          src={logo}
           alt="Sai Aerobics Logo"
           style={{
             width: "50px",

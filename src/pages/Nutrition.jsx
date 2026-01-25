@@ -67,8 +67,21 @@ export default function Nutrition() {
         return;
       }
 
+      // Get user profile for prefill
+      let userName = localStorage.getItem("user_name") || "User";
+      let userEmail = "user@example.com";
+      let userPhone = "9999999999";
+
+      try {
+        const profile = await getUserProfile();
+        userEmail = profile.email || userEmail;
+        userPhone = profile.phone || userPhone;
+      } catch (e) {
+        console.log("Could not fetch profile for prefill");
+      }
+
       const options = {
-        key: "rzp_test_PLACEHOLDER", // Uses placeholder from env in real app, but client needs explicit key or fetch from server config
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID, // Uses env variable
         amount: order.amount,
         currency: order.currency,
         name: "Sai Aerobics",
@@ -88,11 +101,11 @@ export default function Nutrition() {
           }
         },
         prefill: {
-          name: "User", // Ideally fetch name
-          email: "user@example.com", // Ideally fetch email
-          contact: "9999999999" // Ideally fetch phone
+          name: userName,
+          email: userEmail,
+          contact: userPhone
         },
-        theme: { color: "#6200ea" }
+        theme: { color: "#E85D75" } // Using app's primary color
       };
 
       const rzp1 = new window.Razorpay(options);

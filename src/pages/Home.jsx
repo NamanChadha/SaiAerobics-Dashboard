@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "../styles/dashboard.css";
 import heroIllustration from "../assets/hero_illustration.png";
-import logoPlaceholder from "../assets/logo_placeholder.svg";
+import logo from "../assets/logo.png";
 
 export default function Home() {
     const navigate = useNavigate();
@@ -18,7 +18,7 @@ export default function Home() {
             }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <img
-                        src={logoPlaceholder}
+                        src={logo}
                         alt="Sai Aerobics Logo"
                         style={{
                             width: "40px",

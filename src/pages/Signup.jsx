@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/auth.css";
 import { register } from "../api";
-import logoPlaceholder from "../assets/logo_placeholder.svg";
+import logo from "../assets/logo.png";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -38,7 +38,7 @@ export default function Signup() {
         {/* Brand Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", marginBottom: "20px" }}>
           <img
-            src={logoPlaceholder}
+            src={logo}
             alt="Sai Aerobics Logo"
             style={{
               width: "45px",
