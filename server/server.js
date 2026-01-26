@@ -536,9 +536,9 @@ app.post("/feedback", authenticate, async (req, res) => {
 // DASHBOARD: Get user data with membership countdown and streak
 app.get("/dashboard", authenticate, async (req, res) => {
   try {
-    // 1. Fetch User (Essential)
+    // 1. Fetch User (Essential) with Plan/Payment info
     const userRes = await pool.query(
-      "SELECT membership_end, tier, batch_time FROM users WHERE id=$1",
+      "SELECT membership_end, tier, plan, batch_time, payment_status, expiry_date FROM users WHERE id=$1",
       [req.user.id]
     );
 
@@ -584,7 +584,10 @@ app.get("/dashboard", authenticate, async (req, res) => {
 
     const membershipEnd = userRes.rows[0]?.membership_end;
     const tier = userRes.rows[0]?.tier || 'silver';
+    const plan = userRes.rows[0]?.plan || tier;
     const batchTime = userRes.rows[0]?.batch_time || 'Morning';
+    const payment_status = userRes.rows[0]?.payment_status;
+    const expiry_date = userRes.rows[0]?.expiry_date;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -602,7 +605,10 @@ app.get("/dashboard", authenticate, async (req, res) => {
       streakDates: uniqueDates,
       weights: weights,
       tier,
-      batchTime
+      plan,
+      batchTime,
+      payment_status,
+      expiry_date
     });
   } catch (err) {
     console.error("DASHBOARD CRITICAL FAIL:", err);
