@@ -336,13 +336,13 @@ app.post("/auth/forgot-password", async (req, res) => {
       [otp, expires, lowerEmail]
     );
 
-    // Send Email
+    // Send Email (Non-blocking)
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
     });
 
-    await transporter.sendMail({
+    transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: lowerEmail,
       subject: "Password Reset OTP - Sai Aerobics",
@@ -356,9 +356,11 @@ app.post("/auth/forgot-password", async (req, res) => {
           <p style="color: #666; font-size: 0.9em;">If you didn't request this, ignore this email.</p>
         </div>
       `
-    });
+    }).then(() => console.log(`✅ OTP sent to ${lowerEmail}`))
+      .catch(err => console.error("❌ Failed to send OTP email:", err));
 
-    console.log(`✅ OTP sent to ${lowerEmail}`);
+    // Respond immediately - do not wait for email
+    console.log(`✅ OTP generated and saved for ${lowerEmail}`);
     res.json({ message: "OTP sent successfully" });
 
   } catch (err) {
