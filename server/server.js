@@ -767,8 +767,17 @@ Start response with [ and end with ]. No other text.`;
     const data = await response.json();
     let planData = [];
 
+    console.log("Gemini API Response status:", response.status);
+
+    if (data.error) {
+      console.error("Gemini API Error:", data.error);
+      throw new Error("AI service error: " + (data.error.message || "Unknown error"));
+    }
+
     if (data.candidates && data.candidates[0] && data.candidates[0].content) {
       const rawText = data.candidates[0].content.parts[0].text;
+      console.log("Gemini raw response length:", rawText.length);
+
       // Clean potential markdown code blocks if AI adds them
       let jsonText = rawText
         .replace(/```json/gi, '')
@@ -786,6 +795,7 @@ Start response with [ and end with ]. No other text.`;
 
         // Validate the structure
         if (!Array.isArray(planData) || planData.length < 7) {
+          console.error("Incomplete plan, got:", planData.length, "days");
           throw new Error("Incomplete plan generated");
         }
 
@@ -804,15 +814,17 @@ Start response with [ and end with ]. No other text.`;
         }));
 
       } catch (e) {
-        console.error("JSON Parse Error:", e, jsonText.substring(0, 500));
+        console.error("JSON Parse Error:", e.message);
+        console.error("Raw text (first 500 chars):", jsonText.substring(0, 500));
         throw new Error("AI generated invalid format. Please try again.");
       }
     } else {
-      console.error("Gemini Error:", JSON.stringify(data));
+      console.error("Gemini full response:", JSON.stringify(data).substring(0, 1000));
       throw new Error("Failed to generate plan from AI. Please try again.");
     }
 
     // Return the plan
+    console.log("Successfully generated plan with", planData.length, "days");
     res.json({ success: true, plan: planData });
 
   } catch (err) {

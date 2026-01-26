@@ -35,7 +35,12 @@ export default function Nutrition() {
     try {
       const res = await generateMealPlan(formData);
 
-      if (res.plan && Array.isArray(res.plan)) {
+      // Check for error from API
+      if (res.error) {
+        throw new Error(res.error);
+      }
+
+      if (res.plan && Array.isArray(res.plan) && res.plan.length > 0) {
         setGeneratedPlan(res.plan);
 
         // Calculate total stats
@@ -60,9 +65,11 @@ export default function Nutrition() {
           diet: formData.diet
         });
       } else {
-        throw new Error("Invalid plan format received.");
+        console.error("API Response:", res);
+        throw new Error(res.error || "Invalid plan format. Please try again.");
       }
     } catch (err) {
+      console.error("Plan generation error:", err);
       alert("Failed to generate plan. " + err.message);
     } finally {
       setLoadingPlan(false);
