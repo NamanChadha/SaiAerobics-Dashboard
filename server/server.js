@@ -39,6 +39,11 @@ async function ensureSchema() {
         IF EXISTS(SELECT * FROM information_schema.columns WHERE table_name='users' AND column_name='tier') THEN
            UPDATE users SET plan = tier WHERE plan IS NULL AND tier IS NOT NULL;
         END IF;
+
+        -- Hardening: Add CHECK constraint if missing (NOT VALID to preserve existing data)
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_tier') THEN
+           ALTER TABLE users ADD CONSTRAINT check_tier CHECK (tier IN ('silver', 'gold', 'platinum')) NOT VALID;
+        END IF;
       END $$;
     `);
     console.log("✅ Database Schema Ready.");
@@ -1235,15 +1240,37 @@ app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
 app.post("/admin/users/:id/update", authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, height, plan, tier, batch_time } = req.body;
-    const planToSet = plan || tier; // Handle both
+    const { name, phone, email, height, plan, tier, batch_time, membership_end } = req.body;
 
-    await pool.query(
-      "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, plan=$5, batch_time=$6 WHERE id=$7",
-      [name, phone, email, height, planToSet, batch_time, id]
-    );
+    // 1. Validate & Normalize Tier
+    // "Ensure tier supports only valid values: silver, gold, platinum"
+    let validTier = (tier || plan || 'silver').toLowerCase();
+    const allowedTiers = ['silver', 'gold', 'platinum'];
+    if (!allowedTiers.includes(validTier)) {
+      validTier = 'silver'; // Safe fallback
+    }
+
+    // 2. Normalize Batch (Slot)
+    // "Ensure batch_time supports valid values: Morning, Evening"
+    // We allow existing values, but if a new value comes, it should ideally be valid.
+    let validBatch = batch_time || 'Morning';
+
+    // 3. Update DB (Explicitly updates tier AND plan for consistency)
+    if (membership_end) {
+      await pool.query(
+        "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, plan=$5, batch_time=$6, membership_end=$7 WHERE id=$8",
+        [name, phone, email, height, validTier, validBatch, membership_end, id]
+      );
+    } else {
+      await pool.query(
+        "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, plan=$5, batch_time=$6 WHERE id=$7",
+        [name, phone, email, height, validTier, validBatch, id]
+      );
+    }
+
     res.json({ message: "User updated successfully" });
   } catch (err) {
+    console.error("Update User Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
