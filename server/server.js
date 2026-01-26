@@ -1242,29 +1242,34 @@ app.post("/admin/users/:id/update", authenticate, requireAdmin, async (req, res)
     const { id } = req.params;
     const { name, phone, email, height, plan, tier, batch_time, membership_end } = req.body;
 
+    // LOGGING (Safety Check)
+    console.log(`[Admin Update] User ${id}:`, { batch_time, membership_end, tier });
+
     // 1. Validate & Normalize Tier
-    // "Ensure tier supports only valid values: silver, gold, platinum"
     let validTier = (tier || plan || 'silver').toLowerCase();
     const allowedTiers = ['silver', 'gold', 'platinum'];
     if (!allowedTiers.includes(validTier)) {
-      validTier = 'silver'; // Safe fallback
+      validTier = 'silver';
     }
 
-    // 2. Normalize Batch (Slot)
-    // "Ensure batch_time supports valid values: Morning, Evening"
-    // We allow existing values, but if a new value comes, it should ideally be valid.
-    let validBatch = batch_time || 'Morning';
+    // 2. Batch (Slot) - STRICT NO DEFAULT
+    if (!batch_time) {
+      return res.status(400).json({ error: "Batch time is required" });
+    }
+    const finalBatch = batch_time; // Store exactly as received
 
-    // 3. Update DB (Explicitly updates tier AND plan for consistency)
+    // 3. Update DB
+    console.log("Updating DB with:", { validTier, finalBatch, membership_end });
+
     if (membership_end) {
       await pool.query(
         "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, plan=$5, batch_time=$6, membership_end=$7 WHERE id=$8",
-        [name, phone, email, height, validTier, validBatch, membership_end, id]
+        [name, phone, email, height, validTier, finalBatch, membership_end, id]
       );
     } else {
       await pool.query(
         "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, plan=$5, batch_time=$6 WHERE id=$7",
-        [name, phone, email, height, validTier, validBatch, id]
+        [name, phone, email, height, validTier, finalBatch, id]
       );
     }
 
