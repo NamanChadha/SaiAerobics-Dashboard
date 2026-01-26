@@ -117,6 +117,8 @@ export default function ForgotPassword() {
                                 placeholder="6-digit code"
                                 maxLength={6}
                                 required
+                                autoComplete="off"
+                                name="otp_field_random"
                                 style={{ letterSpacing: "2px", textAlign: "center", fontSize: "1.2rem" }}
                             />
                         </div>
@@ -130,6 +132,7 @@ export default function ForgotPassword() {
                                 onChange={e => setNewPassword(e.target.value)}
                                 placeholder="Min 6 characters"
                                 required
+                                autoComplete="new-password"
                             />
                         </div>
 

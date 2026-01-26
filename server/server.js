@@ -44,6 +44,11 @@ async function ensureSchema() {
         IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'check_tier') THEN
            ALTER TABLE users ADD CONSTRAINT check_tier CHECK (tier IN ('silver', 'gold', 'platinum')) NOT VALID;
         END IF;
+
+        -- Ensure Attendance Unique Index for ON CONFLICT (Fixes attendance marking crashing)
+        IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_attendance_unique_date') THEN
+             CREATE UNIQUE INDEX idx_attendance_unique_date ON attendance(user_id, date);
+        END IF;
       END $$;
     `);
     console.log("✅ Database Schema Ready.");
@@ -1095,7 +1100,8 @@ app.post("/share/email", authenticate, async (req, res) => {
       auth: { user: EMAIL_USER, pass: EMAIL_PASS }
     });
 
-    await transporter.sendMail({
+    // Non-blocking send
+    transporter.sendMail({
       from: `"Sai Aerobics AI" <${EMAIL_USER}>`,
       to: email,
       subject: `🥗 Your ${goal} Meal Plan`,
@@ -1107,7 +1113,8 @@ app.post("/share/email", authenticate, async (req, res) => {
           <br/>
           <p>Stay healthy!<br/>- Sai Aerobics Team</p>
         `
-    });
+    }).then(() => console.log(`✅ Meal plan sent to ${email}`))
+      .catch(e => console.error("❌ Failed to send meal plan:", e));
 
     res.json({ success: true, message: `Email sent to ${email}` });
   } catch (err) {
