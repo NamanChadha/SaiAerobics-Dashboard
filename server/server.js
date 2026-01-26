@@ -1191,18 +1191,35 @@ app.get("/admin/stats", authenticate, requireAdmin, async (req, res) => {
 // ADMIN: Get all users (Table View)
 app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
   try {
-    // Basic user info + simplified streak/last activity integration
+    // Try fetch with new columns (plan, batch_time)
     const query = `
       SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, u.tier, u.plan, u.batch_time, u.height, s.last_logged, s.current_streak
       FROM users u
       LEFT JOIN streaks s ON u.id = s.user_id
-      WHERE u.role = 'member'
+        WHERE u.role = 'member'
       ORDER BY u.name ASC
     `;
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Fetch Users Error (Primary):", err.message);
+
+    // Fallback: If 'plan' or 'batch_time' missing, fetch without them to prevent UI crash
+    try {
+      console.warn("⚠️ Attempting fallback fetch for users...");
+      const fallbackQuery = `
+        SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, u.tier, u.height, s.last_logged, s.current_streak
+        FROM users u
+        LEFT JOIN streaks s ON u.id = s.user_id
+        WHERE u.role = 'member'
+        ORDER BY u.name ASC
+      `;
+      const fallbackResult = await pool.query(fallbackQuery);
+      res.json(fallbackResult.rows);
+    } catch (fatalErr) {
+      console.error("Fetch Users Error (Fatal):", fatalErr.message);
+      res.status(500).json({ error: fatalErr.message });
+    }
   }
 });
 
