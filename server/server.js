@@ -201,38 +201,39 @@ app.get("/auth/google/callback", (req, res, next) => {
 app.post("/share/email", authenticate, async (req, res) => {
   try {
     const { planHtml, goal } = req.body;
-    const userEmail = req.user.email || (await pool.query("SELECT email FROM users WHERE id=$1", [req.user.id])).rows[0].email;
 
-    if (!process.env.EMAIL_USER) {
-      return res.json({ message: "Email service not configured (Dev Mode)" });
+    // Get user email
+    const userResult = await pool.query("SELECT email FROM users WHERE id=$1", [req.user.id]);
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const userEmail = userResult.rows[0].email;
+
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      console.error("Email credentials not configured");
+      return res.status(500).json({ error: "Email service not configured" });
     }
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
     });
 
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: userEmail,
-      subject: `Your ${goal} Meal Plan - Sai Aerobics 🥗`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-          <h2 style="color: #6366f1;">Your Customized Meal Plan</h2>
-          <p>Goal: <strong>${goal}</strong></p>
-          <hr>
-          ${planHtml}
-          <br>
-          <p>Stay Consistent! 💪</p>
-          <p>Sai Aerobics Team</p>
-        </div>
-      `
+      subject: `Your ${goal || "Weekly"} Meal Plan - Sai Aerobics 🥗`,
+      html: planHtml
     });
 
-    res.json({ message: "Meal plan sent to your email!" });
+    console.log(`✅ Meal plan email sent to ${userEmail}`);
+    res.json({ success: true, message: "Meal plan sent to your email!" });
   } catch (err) {
-    console.error("Email Share Error:", err);
-    res.status(500).json({ error: "Failed to send email" });
+    console.error("Email Share Error:", err.message);
+    res.status(500).json({ error: "Failed to send email. Please try again." });
   }
 });
 
@@ -659,7 +660,7 @@ app.post("/weight", authenticate, async (req, res) => {
   }
 });
 
-// NUTRITION: AI Diet Plan - Production Ready
+// NUTRITION: AI Diet Plan - Production Ready with Calories & Macros
 app.post("/nutrition-plan", authenticate, async (req, res) => {
   try {
     const { weight, height, goal, diet, allergies, dailyRegulars } = req.body;
@@ -678,15 +679,15 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
 
     const prompt = `You are a nutrition API. Respond with ONLY valid JSON. No markdown. No comments. No extra text.
 
-Create a 7-day ${diet || "Vegetarian"} Indian meal plan.
+Create a 7-day ${diet || "Vegetarian"} Indian meal plan with calories and macros.
 User: ${userName}, Weight: ${weight}kg, Goal: ${goal}
 Allergies: ${allergies || "None"}
 Daily items to include: ${dailyRegulars || "None"}
 
 RESPOND WITH THIS EXACT JSON STRUCTURE ONLY:
-{"day1":{"breakfast":"meal","lunch":"meal","dinner":"meal","snacks":"snack"},"day2":{"breakfast":"meal","lunch":"meal","dinner":"meal","snacks":"snack"},"day3":{"breakfast":"meal","lunch":"meal","dinner":"meal","snacks":"snack"},"day4":{"breakfast":"meal","lunch":"meal","dinner":"meal","snacks":"snack"},"day5":{"breakfast":"meal","lunch":"meal","dinner":"meal","snacks":"snack"},"day6":{"breakfast":"meal","lunch":"meal","dinner":"meal","snacks":"snack"},"day7":{"breakfast":"meal","lunch":"meal","dinner":"meal","snacks":"snack"}}
+{"day1":{"breakfast":{"meal":"food item","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food item","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food item","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack item","calories":150,"protein":5,"carbs":20,"fat":5}},"day2":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day3":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day4":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day5":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day6":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day7":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}}}
 
-Replace "meal" and "snack" with actual Indian food items. Output ONLY the JSON object. Start with { and end with }. No other characters.`;
+Replace food items with actual Indian foods. Keep calories realistic for ${goal}. Output ONLY the JSON object.`;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
@@ -695,7 +696,7 @@ Replace "meal" and "snack" with actual Indian food items. Output ONLY the JSON o
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 2048
+          maxOutputTokens: 4096
         }
       })
     });
@@ -714,7 +715,7 @@ Replace "meal" and "snack" with actual Indian food items. Output ONLY the JSON o
 
       try {
         const parsed = JSON.parse(rawText);
-        plan = validateAndRepairPlan(parsed);
+        plan = validateAndRepairPlan(parsed, goal, diet);
       } catch (e) {
         console.error("JSON Parse Failed:", e.message);
         plan = generateFallbackPlan(goal, diet);
@@ -740,24 +741,38 @@ Replace "meal" and "snack" with actual Indian food items. Output ONLY the JSON o
   }
 });
 
-function validateAndRepairPlan(parsed) {
+function validateAndRepairPlan(parsed, goal, diet) {
   const days = ["day1", "day2", "day3", "day4", "day5", "day6", "day7"];
   const meals = ["breakfast", "lunch", "dinner", "snacks"];
-  const defaults = {
-    breakfast: "Poha with vegetables",
-    lunch: "Dal, Rice, Sabzi, Salad",
-    dinner: "Roti, Paneer curry, Raita",
-    snacks: "Fruits, Green tea"
-  };
+  const fallback = generateFallbackPlan(goal, diet);
 
   const plan = {};
   days.forEach(day => {
     plan[day] = {};
     meals.forEach(meal => {
-      if (parsed[day] && typeof parsed[day][meal] === "string" && parsed[day][meal].length > 0) {
-        plan[day][meal] = parsed[day][meal];
+      if (parsed[day] && parsed[day][meal]) {
+        const m = parsed[day][meal];
+        if (typeof m === "object" && m.meal) {
+          plan[day][meal] = {
+            meal: m.meal || fallback[day][meal].meal,
+            calories: m.calories || fallback[day][meal].calories,
+            protein: m.protein || fallback[day][meal].protein,
+            carbs: m.carbs || fallback[day][meal].carbs,
+            fat: m.fat || fallback[day][meal].fat
+          };
+        } else if (typeof m === "string") {
+          plan[day][meal] = {
+            meal: m,
+            calories: fallback[day][meal].calories,
+            protein: fallback[day][meal].protein,
+            carbs: fallback[day][meal].carbs,
+            fat: fallback[day][meal].fat
+          };
+        } else {
+          plan[day][meal] = fallback[day][meal];
+        }
       } else {
-        plan[day][meal] = defaults[meal];
+        plan[day][meal] = fallback[day][meal];
       }
     });
   });
@@ -767,49 +782,50 @@ function validateAndRepairPlan(parsed) {
 function generateFallbackPlan(goal, diet) {
   const isVeg = diet !== "Non-Vegetarian";
   const isWeightLoss = goal === "Weight Loss";
+  const calMult = isWeightLoss ? 0.85 : 1;
 
   return {
     day1: {
-      breakfast: isWeightLoss ? "Oats with milk, 1 banana" : "Aloo Paratha with curd",
-      lunch: isVeg ? "Dal, Brown rice, Mixed sabzi" : "Chicken curry, Rice, Salad",
-      dinner: isVeg ? "Paneer bhurji, 2 Roti" : "Grilled fish, Roti, Salad",
-      snacks: "Green tea, Roasted chana"
+      breakfast: { meal: isWeightLoss ? "Oats with milk, 1 banana" : "Aloo Paratha with curd", calories: Math.round(350 * calMult), protein: 12, carbs: 45, fat: 10 },
+      lunch: { meal: isVeg ? "Dal, Brown rice, Mixed sabzi" : "Chicken curry, Rice, Salad", calories: Math.round(550 * calMult), protein: 22, carbs: 65, fat: 15 },
+      dinner: { meal: isVeg ? "Paneer bhurji, 2 Roti" : "Grilled fish, Roti, Salad", calories: Math.round(450 * calMult), protein: 20, carbs: 40, fat: 18 },
+      snacks: { meal: "Green tea, Roasted chana", calories: 120, protein: 8, carbs: 15, fat: 4 }
     },
     day2: {
-      breakfast: "Poha with peanuts, Tea",
-      lunch: isVeg ? "Rajma, Rice, Cucumber salad" : "Egg curry, Rice, Raita",
-      dinner: "Vegetable soup, Multigrain roti",
-      snacks: "Fruits, Buttermilk"
+      breakfast: { meal: "Poha with peanuts, Tea", calories: Math.round(320 * calMult), protein: 10, carbs: 50, fat: 8 },
+      lunch: { meal: isVeg ? "Rajma, Rice, Cucumber salad" : "Egg curry, Rice, Raita", calories: Math.round(520 * calMult), protein: 20, carbs: 70, fat: 12 },
+      dinner: { meal: "Vegetable soup, Multigrain roti", calories: Math.round(350 * calMult), protein: 12, carbs: 45, fat: 8 },
+      snacks: { meal: "Fruits, Buttermilk", calories: 150, protein: 5, carbs: 25, fat: 3 }
     },
     day3: {
-      breakfast: "Idli sambar, Coconut chutney",
-      lunch: isVeg ? "Chole, Rice, Onion salad" : "Mutton curry, Rice",
-      dinner: "Khichdi with ghee, Papad",
-      snacks: "Sprouts chaat"
+      breakfast: { meal: "Idli sambar, Coconut chutney", calories: Math.round(380 * calMult), protein: 12, carbs: 55, fat: 10 },
+      lunch: { meal: isVeg ? "Chole, Rice, Onion salad" : "Mutton curry, Rice", calories: Math.round(580 * calMult), protein: 25, carbs: 65, fat: 18 },
+      dinner: { meal: "Khichdi with ghee, Papad", calories: Math.round(400 * calMult), protein: 15, carbs: 55, fat: 12 },
+      snacks: { meal: "Sprouts chaat", calories: 140, protein: 10, carbs: 18, fat: 3 }
     },
     day4: {
-      breakfast: "Upma, Coffee",
-      lunch: isVeg ? "Palak paneer, Roti, Salad" : "Fish fry, Rice, Dal",
-      dinner: "Moong dal, Jeera rice",
-      snacks: "Almonds, Green tea"
+      breakfast: { meal: "Upma, Coffee", calories: Math.round(300 * calMult), protein: 8, carbs: 45, fat: 8 },
+      lunch: { meal: isVeg ? "Palak paneer, Roti, Salad" : "Fish fry, Rice, Dal", calories: Math.round(550 * calMult), protein: 22, carbs: 55, fat: 20 },
+      dinner: { meal: "Moong dal, Jeera rice", calories: Math.round(420 * calMult), protein: 18, carbs: 60, fat: 8 },
+      snacks: { meal: "Almonds, Green tea", calories: 180, protein: 6, carbs: 8, fat: 14 }
     },
     day5: {
-      breakfast: "Besan chilla, Mint chutney",
-      lunch: isVeg ? "Mix dal, Rice, Bhindi" : "Chicken tikka, Roti",
-      dinner: "Vegetable pulao, Raita",
-      snacks: "Banana, Roasted makhana"
+      breakfast: { meal: "Besan chilla, Mint chutney", calories: Math.round(280 * calMult), protein: 14, carbs: 30, fat: 10 },
+      lunch: { meal: isVeg ? "Mix dal, Rice, Bhindi" : "Chicken tikka, Roti", calories: Math.round(520 * calMult), protein: 24, carbs: 60, fat: 14 },
+      dinner: { meal: "Vegetable pulao, Raita", calories: Math.round(450 * calMult), protein: 12, carbs: 65, fat: 12 },
+      snacks: { meal: "Banana, Roasted makhana", calories: 160, protein: 4, carbs: 30, fat: 2 }
     },
     day6: {
-      breakfast: "Dosa, Sambar",
-      lunch: isVeg ? "Kadhi pakora, Rice" : "Egg bhurji, Paratha",
-      dinner: "Roti, Lauki sabzi, Dal",
-      snacks: "Coconut water, Dates"
+      breakfast: { meal: "Dosa, Sambar", calories: Math.round(350 * calMult), protein: 10, carbs: 50, fat: 12 },
+      lunch: { meal: isVeg ? "Kadhi pakora, Rice" : "Egg bhurji, Paratha", calories: Math.round(560 * calMult), protein: 18, carbs: 70, fat: 18 },
+      dinner: { meal: "Roti, Lauki sabzi, Dal", calories: Math.round(380 * calMult), protein: 16, carbs: 50, fat: 10 },
+      snacks: { meal: "Coconut water, Dates", calories: 130, protein: 2, carbs: 28, fat: 1 }
     },
     day7: {
-      breakfast: "Stuffed paratha, Pickle, Curd",
-      lunch: isVeg ? "Paneer tikka masala, Naan" : "Biryani, Raita",
-      dinner: "Light soup, Multigrain toast",
-      snacks: "Mixed fruits, Herbal tea"
+      breakfast: { meal: "Stuffed paratha, Pickle, Curd", calories: Math.round(420 * calMult), protein: 14, carbs: 55, fat: 16 },
+      lunch: { meal: isVeg ? "Paneer tikka masala, Naan" : "Biryani, Raita", calories: Math.round(620 * calMult), protein: 25, carbs: 65, fat: 25 },
+      dinner: { meal: "Light soup, Multigrain toast", calories: Math.round(280 * calMult), protein: 10, carbs: 35, fat: 8 },
+      snacks: { meal: "Mixed fruits, Herbal tea", calories: 120, protein: 2, carbs: 28, fat: 1 }
     }
   };
 }
