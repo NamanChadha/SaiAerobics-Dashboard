@@ -588,8 +588,9 @@ app.get("/dashboard", authenticate, async (req, res) => {
     try {
       // FIX: Column is "log_date", not "created_at"
       // Aliasing log_date -> created_at for frontend compatibility
+      // FIX: Convert UTC timestamp to IST date string for correct comparison
       const weightRes = await pool.query(
-        "SELECT weight, log_date as created_at, to_char(log_date, 'YYYY-MM-DD') as date_str FROM weight_logs WHERE user_id=$1 ORDER BY log_date DESC LIMIT 30",
+        "SELECT weight, log_date as created_at, to_char(log_date AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') as date_str FROM weight_logs WHERE user_id=$1 ORDER BY log_date DESC LIMIT 30",
         [req.user.id]
       );
       weights = weightRes.rows;
@@ -635,7 +636,8 @@ app.get("/dashboard", authenticate, async (req, res) => {
 // ATTENDANCE: Mark attendance manually
 app.post("/attendance", authenticate, async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    // FIX: Use IST Date to match frontend expectation (UTC vs IST issue)
+    const today = new Date().toLocaleString("en-CA", { timeZone: "Asia/Kolkata" }).split(",")[0];
 
     // Insert into attendance if not exists
     await pool.query(
