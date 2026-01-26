@@ -22,6 +22,32 @@ import compression from "compression";
 import cron from "node-cron";
 import { initPool, pool, testDB } from "./db.js";
 
+/* SCHEMA AUTOMATION */
+async function ensureSchema() {
+  try {
+    console.log("🛠 Ensuring Database Schema...");
+    // Add missing columns safely
+    await pool.query(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS batch_time VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS plan VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS otp VARCHAR(6);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS otp_expires TIMESTAMP;
+      
+      -- Backfill plan from tier if exists
+      DO $$
+      BEGIN
+        IF EXISTS(SELECT * FROM information_schema.columns WHERE table_name='users' AND column_name='tier') THEN
+           UPDATE users SET plan = tier WHERE plan IS NULL AND tier IS NOT NULL;
+        END IF;
+      END $$;
+    `);
+    console.log("✅ Database Schema Ready.");
+  } catch (err) {
+    console.error("⚠️ Schema Auto-Update Warning:", err.message);
+  }
+}
+ensureSchema();
+
 const app = express();
 app.set('trust proxy', 1); // Trust Render's proxy for rate limiting
 

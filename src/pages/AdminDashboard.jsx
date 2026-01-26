@@ -38,10 +38,11 @@ export default function AdminDashboard() {
         getAdminGraphs()
       ]);
       setStats(statsData);
-      setUsers(usersData);
+      setUsers(Array.isArray(usersData) ? usersData : []);
       setGraphs(graphData);
     } catch (err) {
       console.error("Error fetching admin data:", err);
+      alert("Failed to load dashboard data. Please try refreshing.");
     } finally {
       setLoading(false);
     }
