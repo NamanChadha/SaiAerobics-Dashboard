@@ -63,8 +63,7 @@ const razorpay = new Razorpay({
 
 const isDev = process.env.NODE_ENV !== "production";
 
-// Passport Google OAuth 2.0 Strategy
-// Passport Google OAuth 2.0 Strategy
+// Passport Google OAuth 2.0 Strategy - Production Ready
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -72,34 +71,40 @@ passport.use(new GoogleStrategy({
 },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      const email = profile.emails[0].value.toLowerCase().trim();
-      const name = profile.displayName;
-      const googleId = profile.id;
+      // Null-safe profile access
+      const email = profile?.emails?.[0]?.value?.toLowerCase()?.trim();
+      const name = profile?.displayName || "User";
+      const googleId = profile?.id;
+
+      if (!email) {
+        console.error("Google OAuth: No email in profile");
+        return done(null, false);
+      }
 
       // Check if user exists
-      let user = await pool.query("SELECT * FROM users WHERE LOWER(email)=$1", [email]);
+      let userResult = await pool.query("SELECT * FROM users WHERE LOWER(email)=$1", [email]);
 
-      if (user.rowCount === 0) {
-        // Create new user with random password (they'll use Google to login)
+      if (userResult.rowCount === 0) {
+        // Create new user
         const randomPassword = crypto.randomBytes(16).toString("hex");
         const hash = await bcrypt.hash(randomPassword, 10);
 
-        const result = await pool.query(
-          "INSERT INTO users (name, email, password, google_uid) VALUES ($1,$2,$3,$4) RETURNING id, email, role, name, active",
-          [name, email, hash, googleId]
+        const insertResult = await pool.query(
+          "INSERT INTO users (name, email, password, google_uid, active) VALUES ($1,$2,$3,$4,$5) RETURNING id, email, role, name, active",
+          [name, email, hash, googleId, true]
         );
-        user = { rows: [result.rows[0]], rowCount: 1 };
+        return done(null, insertResult.rows[0]);
       } else {
         // Update google_uid if not set
-        if (!user.rows[0].google_uid) {
-          await pool.query("UPDATE users SET google_uid=$1 WHERE id=$2", [googleId, user.rows[0].id]);
+        const existingUser = userResult.rows[0];
+        if (!existingUser.google_uid) {
+          await pool.query("UPDATE users SET google_uid=$1 WHERE id=$2", [googleId, existingUser.id]);
         }
+        return done(null, existingUser);
       }
-
-      return done(null, user.rows[0]);
     } catch (err) {
-      console.error("Google Strategy Error:", err);
-      return done(err, null);
+      console.error("Google Strategy DB Error:", err.message);
+      return done(null, false);
     }
   }
 ));
@@ -142,24 +147,32 @@ const loginLimiter = rateLimit({
 app.use(passport.initialize());
 
 // ==========================================
-// GOOGLE OAUTH ROUTES
+// GOOGLE OAUTH ROUTES - Production Ready
 // ==========================================
 
-// GET /auth/google - Initiate Google OAuth
-app.get("/auth/google", passport.authenticate("google", {
-  scope: ["profile", "email"]
-}));
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://www.saiaerobics.in";
 
-// GET /auth/google/callback - Handle Google OAuth callback
-app.get("/auth/google/callback",
-  passport.authenticate("google", { session: false, failureRedirect: `${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=google_auth_failed` }),
-  (req, res) => {
+// GET /auth/google - Initiate Google OAuth
+app.get("/auth/google", (req, res, next) => {
+  passport.authenticate("google", {
+    scope: ["profile", "email"],
+    session: false
+  })(req, res, next);
+});
+
+// GET /auth/google/callback - Handle Google OAuth callback (NEVER returns JSON)
+app.get("/auth/google/callback", (req, res, next) => {
+  passport.authenticate("google", { session: false }, (err, user, info) => {
     try {
-      const user = req.user;
+      // Auth failed or no user
+      if (err || !user) {
+        console.error("Google OAuth Error:", err?.message || "No user returned");
+        return res.redirect(`${FRONTEND_URL}/login?error=google_auth_failed`);
+      }
 
       // Check if account is frozen
-      if (!user.active) {
-        return res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=account_frozen`);
+      if (user.active === false) {
+        return res.redirect(`${FRONTEND_URL}/login?error=account_frozen`);
       }
 
       // Generate JWT token
@@ -169,17 +182,18 @@ app.get("/auth/google/callback",
         { expiresIn: "7d" }
       );
 
-      // Redirect to frontend with token and user info
-      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-      const redirectUrl = `${frontendUrl}/auth/callback?token=${token}&name=${encodeURIComponent(user.name)}&role=${user.role || "member"}`;
+      // Build redirect URL
+      const userName = encodeURIComponent(user.name || "User");
+      const userRole = user.role || "member";
+      const redirectUrl = `${FRONTEND_URL}/auth/callback?token=${token}&name=${userName}&role=${userRole}`;
 
-      res.redirect(redirectUrl);
-    } catch (err) {
-      console.error("Google Callback Error:", err);
-      res.redirect(`${process.env.FRONTEND_URL || "http://localhost:5173"}/login?error=server_error`);
+      return res.redirect(redirectUrl);
+    } catch (error) {
+      console.error("Google Callback Exception:", error.message);
+      return res.redirect(`${FRONTEND_URL}/login?error=server_error`);
     }
-  }
-);
+  })(req, res, next);
+});
 
 // NUTRITION: Generate Meal Plan (Rule-Based + Daily Eatables)
 app.post("/nutrition-plan", authenticate, async (req, res) => {
