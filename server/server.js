@@ -329,8 +329,8 @@ app.post("/auth/forgot-password", async (req, res) => {
 
     if (user.rowCount === 0) return res.status(404).json({ error: "User not found" });
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate 6-digit OTP (Secure)
+    const otp = crypto.randomInt(100000, 999999).toString();
     const expires = new Date(Date.now() + 10 * 60000); // 10 Minutes Expiry
 
     await pool.query(
@@ -338,11 +338,9 @@ app.post("/auth/forgot-password", async (req, res) => {
       [otp, expires, lowerEmail]
     );
 
-    // Nodemailer Config from Env
+    // Nodemailer Config (Use Gmail Service)
     const transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: process.env.EMAIL_PORT,
-      secure: process.env.EMAIL_PORT == 465, // true for 465, false for other ports usually (587)
+      service: "gmail",
       auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
     });
 
@@ -1102,11 +1100,11 @@ app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
 app.post("/admin/users/:id/update", authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, height, tier } = req.body;
+    const { name, phone, email, height, tier, batch_time } = req.body;
 
     await pool.query(
-      "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5 WHERE id=$6",
-      [name, phone, email, height, tier, id]
+      "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, batch_time=$6 WHERE id=$7",
+      [name, phone, email, height, tier, batch_time, id]
     );
     res.json({ message: "User updated successfully" });
   } catch (err) {

@@ -19,7 +19,7 @@ const TIER_STYLES = {
     }
 };
 
-export default function MembershipCard({ tier, batchTime, daysLeft }) {
+export default function MembershipCard({ tier, batchTime, daysLeft, onRenew }) {
     const isExpired = daysLeft <= 0;
     const maxDays = tier === 'gold' ? 90 : tier === 'platinum' ? 365 : 30;
     const progress = Math.min(100, Math.max(0, (daysLeft / maxDays) * 100));
