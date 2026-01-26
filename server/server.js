@@ -338,28 +338,21 @@ app.post("/auth/forgot-password", async (req, res) => {
       [otp, expires, lowerEmail]
     );
 
-    // Nodemailer Config (Use Gmail with explicit settings for cloud environments)
+    // Nodemailer Config - Simple Gmail Service (RECOMMENDED)
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false, // Use TLS
+      service: "gmail",
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-      },
-      tls: {
-        rejectUnauthorized: false // Allow self-signed certs
-      },
-      connectionTimeout: 10000, // 10 seconds
-      greetingTimeout: 10000,
-      socketTimeout: 15000
+      }
     });
 
     try {
       await transporter.sendMail({
-        from: `"Sai Aerobics" <${process.env.EMAIL_USER}>`,
+        from: process.env.EMAIL_USER,
         to: lowerEmail,
         subject: "Password Reset OTP - Sai Aerobics",
+        text: `Your OTP is ${otp}. This code is valid for 10 minutes.`,
         html: `
           <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #ddd; border-radius: 10px; text-align: center;">
             <h2 style="color: #E85D75;">Password Reset</h2>
@@ -367,24 +360,14 @@ app.post("/auth/forgot-password", async (req, res) => {
             <h1 style="background: #f3f4f6; padding: 15px 30px; display: inline-block; letter-spacing: 8px; border-radius: 8px; font-size: 32px;">${otp}</h1>
             <p>This code is valid for 10 minutes.</p>
             <p style="color: #666; font-size: 0.8rem;">If you didn't request this, please ignore.</p>
-            <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
-            <p style="color: #999; font-size: 0.75rem;">Sai Aerobics - Wellness for Women</p>
           </div>
         `
       });
       console.log(`✅ OTP email sent to ${lowerEmail}`);
       res.json({ message: "OTP sent successfully" });
-    } catch (emailErr) {
-      console.error("Email Send Error:", emailErr.message);
-
-      // FALLBACK: Return OTP in response for testing (REMOVE IN PRODUCTION)
-      console.log("========================================");
-      console.log(`⚠️ EMAIL FAILED. OTP for ${lowerEmail}: ${otp}`);
-      console.log("========================================");
-
-      // Still return success but with warning (so user can check logs)
-      // In production, you should use a proper email service like SendGrid/Resend
-      res.status(500).json({ error: "Email service temporarily unavailable. Please try again or contact support." });
+    } catch (err) {
+      console.error("🔥 EMAIL FAILED:", err);
+      return res.status(500).json({ error: "Email service failed. Please try again later." });
     }
 
   } catch (err) {
