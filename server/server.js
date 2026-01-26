@@ -700,66 +700,119 @@ app.post("/weight", authenticate, async (req, res) => {
 // NUTRITION: AI Diet Plan (Generate & Send)
 app.post("/nutrition-plan", authenticate, async (req, res) => {
   try {
-    const { weight, height, goal, diet, allergies, deliveryMethod } = req.body;
+    const { weight, height, goal, diet, allergies, dailyRegulars } = req.body;
 
     // Fetch user details
     const user = await pool.query("SELECT phone, email, name FROM users WHERE id=$1", [req.user.id]);
     if (user.rowCount === 0) return res.status(404).json({ error: "User not found" });
 
-    const { phone, email, name } = user.rows[0];
-    const method = deliveryMethod || 'whatsapp'; // Default to whatsapp
+    const { name } = user.rows[0];
 
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
-    const TWILIO_SID = process.env.TWILIO_SID;
-    const TWILIO_AUTH = process.env.TWILIO_AUTH;
-    const TWILIO_WHATSAPP = process.env.TWILIO_WHATSAPP;
-    const EMAIL_USER = process.env.EMAIL_USER;
-    const EMAIL_PASS = process.env.EMAIL_PASS;
 
-    // 1. Generate Plan with Gemini (Request JSON)
-    const prompt = `Create a 7 - day ${diet} Indian meal plan for ${name}(Weight: ${weight}kg, Goal: ${goal}).
-      Allergies: ${allergies || "None"}.
-    Response MUST be a raw JSON Array with no markdown formatting.
-      Format:
-    [
-      {
-        "day": "Mon",
-        "breakfast": "...", "calories_breakfast": "150 kcal",
-        "lunch": "...", "calories_lunch": "300 kcal",
-        "snack": "...", "calories_snack": "100 kcal",
-        "dinner": "...", "calories_dinner": "250 kcal"
-      },
-      ...
-    ]
-    Keep meals brief and practical.`;
+    if (!GEMINI_KEY) {
+      return res.status(500).json({ error: "AI service not configured." });
+    }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+    // Build comprehensive prompt
+    const prompt = `Create a detailed 7-day Indian meal plan for:
+- Name: ${name}
+- Weight: ${weight} kg
+- Height: ${height}
+- Goal: ${goal}
+- Diet Type: ${diet}
+- Allergies to AVOID: ${allergies || "None"}
+- Daily regulars to INCLUDE: ${dailyRegulars || "None specified"}
+
+IMPORTANT RULES:
+1. Generate EXACTLY 7 days (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
+2. Each meal must be practical, easy to prepare Indian food
+3. Include specific calorie counts for each meal
+4. Avoid all mentioned allergies
+5. If daily regulars are mentioned (like tea, coffee), incorporate them naturally into the plan
+6. Make the plan varied - don't repeat the same meals across days
+7. Keep portions realistic for ${goal.toLowerCase()}
+
+Response MUST be a raw JSON Array with NO markdown formatting, NO code blocks.
+Exact format required:
+[
+  {
+    "day": "Mon",
+    "breakfast": "Specific breakfast item with portion",
+    "calories_breakfast": "250 kcal",
+    "lunch": "Specific lunch item with portion",
+    "calories_lunch": "400 kcal",
+    "snack": "Specific snack item",
+    "calories_snack": "150 kcal",
+    "dinner": "Specific dinner item with portion",
+    "calories_dinner": "350 kcal"
+  },
+  ... (continue for all 7 days)
+]
+
+Start response with [ and end with ]. No other text.`;
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 4096
+        }
       })
     });
 
     const data = await response.json();
     let planData = [];
 
-    if (data.candidates && data.candidates[0].content) {
+    if (data.candidates && data.candidates[0] && data.candidates[0].content) {
       const rawText = data.candidates[0].content.parts[0].text;
       // Clean potential markdown code blocks if AI adds them
-      const jsonText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      let jsonText = rawText
+        .replace(/```json/gi, '')
+        .replace(/```/g, '')
+        .trim();
+
+      // Try to extract JSON array if there's extra text
+      const jsonMatch = jsonText.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+
       try {
         planData = JSON.parse(jsonText);
+
+        // Validate the structure
+        if (!Array.isArray(planData) || planData.length < 7) {
+          throw new Error("Incomplete plan generated");
+        }
+
+        // Ensure all days have required fields
+        const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+        planData = planData.slice(0, 7).map((day, index) => ({
+          day: day.day || days[index],
+          breakfast: day.breakfast || "Oats with fruits",
+          calories_breakfast: day.calories_breakfast || "250 kcal",
+          lunch: day.lunch || "Dal Rice with Salad",
+          calories_lunch: day.calories_lunch || "400 kcal",
+          snack: day.snack || "Nuts & Green Tea",
+          calories_snack: day.calories_snack || "150 kcal",
+          dinner: day.dinner || "Roti with Sabzi",
+          calories_dinner: day.calories_dinner || "350 kcal"
+        }));
+
       } catch (e) {
-        console.error("JSON Parse Error:", e, jsonText);
+        console.error("JSON Parse Error:", e, jsonText.substring(0, 500));
         throw new Error("AI generated invalid format. Please try again.");
       }
     } else {
       console.error("Gemini Error:", JSON.stringify(data));
-      throw new Error("Failed to generate plan from AI.");
+      throw new Error("Failed to generate plan from AI. Please try again.");
     }
 
-    // Always return the plan object
+    // Return the plan
     res.json({ success: true, plan: planData });
 
   } catch (err) {
