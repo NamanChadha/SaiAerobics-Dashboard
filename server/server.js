@@ -543,9 +543,9 @@ app.post("/feedback", authenticate, async (req, res) => {
 // DASHBOARD: Get user data with membership countdown and streak
 app.get("/dashboard", authenticate, async (req, res) => {
   try {
-    // 1. Fetch User (Essential) with Plan/Payment info
+    // 1. Fetch User (Essential) with Payment info (Use tier as plan)
     const userRes = await pool.query(
-      "SELECT membership_end, tier, plan, batch_time, payment_status, expiry_date FROM users WHERE id=$1",
+      "SELECT membership_end, tier, batch_time, payment_status, expiry_date FROM users WHERE id=$1",
       [req.user.id]
     );
 
@@ -591,7 +591,8 @@ app.get("/dashboard", authenticate, async (req, res) => {
 
     const membershipEnd = userRes.rows[0]?.membership_end;
     const tier = userRes.rows[0]?.tier || 'silver';
-    const plan = userRes.rows[0]?.plan || tier;
+    const plan = tier; // Explicitly map tier to plan since column is missing
+
     const batchTime = userRes.rows[0]?.batch_time || 'Morning';
     const payment_status = userRes.rows[0]?.payment_status;
     const expiry_date = userRes.rows[0]?.expiry_date;
@@ -1204,9 +1205,9 @@ app.get("/admin/stats", authenticate, requireAdmin, async (req, res) => {
 // ADMIN: Get all users (Table View)
 app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
   try {
-    // Try fetch with new columns (plan, batch_time)
+    // Try fetch with new columns (batch_time) - Removed plan as it doesn't exist
     const query = `
-      SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, u.tier, u.plan, u.batch_time, u.height, s.last_logged, s.current_streak
+      SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, u.tier, u.batch_time, u.height, s.last_logged, s.current_streak
       FROM users u
       LEFT JOIN streaks s ON u.id = s.user_id
         WHERE u.role = 'member'
