@@ -1240,37 +1240,36 @@ app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
 app.post("/admin/users/:id/update", authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, height, plan, tier, batch_time, membership_end } = req.body;
+    // Align fields: Remove plan, keep only verified columns
+    const { name, phone, email, height, tier, batch_time, membership_end } = req.body;
 
-    // LOGGING (Safety Check)
-    console.log(`[Admin Update] User ${id}:`, { batch_time, membership_end, tier });
+    // LOGGING
+    console.log(`[Admin Update-Member] ID: ${id}`, req.body);
 
-    // 1. Validate & Normalize Tier
-    let validTier = (tier || plan || 'silver').toLowerCase();
+    // 1. Validate Tier
+    let validTier = (tier || 'silver').toLowerCase();
     const allowedTiers = ['silver', 'gold', 'platinum'];
-    if (!allowedTiers.includes(validTier)) {
-      validTier = 'silver';
-    }
+    if (!allowedTiers.includes(validTier)) validTier = 'silver';
 
-    // 2. Batch (Slot) - STRICT NO DEFAULT
-    if (!batch_time) {
-      return res.status(400).json({ error: "Batch time is required" });
-    }
-    const finalBatch = batch_time; // Store exactly as received
+    // 2. Validate Batch
+    if (!batch_time) return res.status(400).json({ error: "Batch time is required" });
 
     // 3. Update DB
-    console.log("Updating DB with:", { validTier, finalBatch, membership_end });
-
+    let result;
     if (membership_end) {
-      await pool.query(
-        "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, plan=$5, batch_time=$6, membership_end=$7 WHERE id=$8",
-        [name, phone, email, height, validTier, finalBatch, membership_end, id]
+      result = await pool.query(
+        "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, batch_time=$6, membership_end=$7 WHERE id=$8",
+        [name, phone, email, height, validTier, batch_time, membership_end, id]
       );
     } else {
-      await pool.query(
-        "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, plan=$5, batch_time=$6 WHERE id=$7",
-        [name, phone, email, height, validTier, finalBatch, id]
+      result = await pool.query(
+        "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, batch_time=$6 WHERE id=$7",
+        [name, phone, email, height, validTier, batch_time, id]
       );
+    }
+
+    if (result.rowCount === 0) {
+      throw new Error("User not found or update failed");
     }
 
     res.json({ message: "User updated successfully" });
