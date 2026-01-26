@@ -4,6 +4,7 @@ import "../styles/dashboard.css";
 import { generateMealPlan, shareMealPlanEmail, getDashboardData } from "../api";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import PaymentModal from "../components/PaymentModal";
 
 export default function Nutrition() {
   const navigate = useNavigate();
@@ -21,17 +22,19 @@ export default function Nutrition() {
   const [shareMsg, setShareMsg] = useState("");
   const [isPaidMember, setIsPaidMember] = useState(null); // null = loading
   const [checkingSubscription, setCheckingSubscription] = useState(true);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   // Check subscription status on mount
   useEffect(() => {
     const checkSubscription = async () => {
       try {
         const data = await getDashboardData();
-        // Check if user has valid subscription
-        const hasPaid = data.payment_status === "PAID" &&
+        // Check if user is Gold tier OR has valid paid subscription
+        const isGoldMember = data.plan && data.plan.toLowerCase() === "gold";
+        const hasPaidSubscription = data.payment_status === "PAID" &&
           data.expiry_date &&
           new Date(data.expiry_date) > new Date();
-        setIsPaidMember(hasPaid);
+        setIsPaidMember(isGoldMember || hasPaidSubscription);
       } catch (err) {
         console.error("Failed to check subscription:", err);
         setIsPaidMember(false);
@@ -306,7 +309,7 @@ export default function Nutrition() {
             </div>
 
             <button
-              onClick={() => navigate("/membership")}
+              onClick={() => setShowPaymentModal(true)}
               style={{
                 width: "100%",
                 padding: "16px",
@@ -328,6 +331,16 @@ export default function Nutrition() {
             </p>
           </div>
         </div>
+
+        {/* Payment Modal */}
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={() => {
+            setIsPaidMember(true);
+            setShowPaymentModal(false);
+          }}
+        />
       </div>
     );
   }

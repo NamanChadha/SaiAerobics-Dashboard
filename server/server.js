@@ -49,8 +49,9 @@ app.use("/api", globalLimiter); // Apply to API routes if prefixed, or globally 
 // Allow CORS
 app.use(cors());
 
-// Body Parsers
-app.use(express.json({ limit: "10kb" })); // Limit body size to prevent DoS
+// Body Parsers - Increased limit for email payloads
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 import Razorpay from "razorpay";
 import passport from "passport";
@@ -668,7 +669,7 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
 
     // Check subscription status
     const userResult = await pool.query(
-      "SELECT name, payment_status, expiry_date FROM users WHERE id=$1",
+      "SELECT name, payment_status, expiry_date, plan FROM users WHERE id=$1",
       [userId]
     );
     if (userResult.rowCount === 0) {
@@ -678,10 +679,13 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
     const user = userResult.rows[0];
     const userName = user.name || "User";
 
-    // Check if user has active subscription
-    const isPaid = user.payment_status === "PAID" &&
+    // Check if user has active subscription OR is Gold tier member
+    const isGoldMember = user.plan && user.plan.toLowerCase() === "gold";
+    const hasPaidSubscription = user.payment_status === "PAID" &&
       user.expiry_date &&
       new Date(user.expiry_date) > new Date();
+
+    const isPaid = isGoldMember || hasPaidSubscription;
 
     if (!isPaid) {
       return res.status(403).json({
