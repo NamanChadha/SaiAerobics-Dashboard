@@ -5,23 +5,20 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 
 export default function Nutrition() {
-  // Form State
   const [formData, setFormData] = useState({
     weight: "",
     height: "",
     goal: "Weight Loss",
     diet: "Vegetarian",
     allergies: "",
-    dailyRegulars: "" // Notes section for tea, coffee, etc.
+    dailyRegulars: ""
   });
 
   const [generatedPlan, setGeneratedPlan] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [shareMsg, setShareMsg] = useState("");
-  const [totalStats, setTotalStats] = useState(null);
 
   const handleGeneratePlan = async () => {
-    // Validation
     if (!formData.weight || !formData.height) {
       alert("Please enter your weight and height.");
       return;
@@ -30,47 +27,18 @@ export default function Nutrition() {
     setLoadingPlan(true);
     setGeneratedPlan(null);
     setShareMsg("");
-    setTotalStats(null);
 
     try {
       const res = await generateMealPlan(formData);
 
-      // Check for error from API
-      if (res.error) {
-        throw new Error(res.error);
-      }
-
-      if (res.plan && Array.isArray(res.plan) && res.plan.length > 0) {
+      if (res.success && res.plan) {
         setGeneratedPlan(res.plan);
-
-        // Calculate total stats
-        let totalCalories = 0;
-        res.plan.forEach(day => {
-          const cals = [
-            day.calories_breakfast,
-            day.calories_lunch,
-            day.calories_snack,
-            day.calories_dinner
-          ];
-          cals.forEach(c => {
-            const num = parseInt(c);
-            if (!isNaN(num)) totalCalories += num;
-          });
-        });
-
-        setTotalStats({
-          avgDailyCalories: Math.round(totalCalories / 7),
-          totalWeeklyCalories: totalCalories,
-          goal: formData.goal,
-          diet: formData.diet
-        });
       } else {
-        console.error("API Response:", res);
-        throw new Error(res.error || "Invalid plan format. Please try again.");
+        throw new Error(res.error || "Failed to generate plan");
       }
     } catch (err) {
       console.error("Plan generation error:", err);
-      alert("Failed to generate plan. " + err.message);
+      alert("Failed to generate plan. Please try again.");
     } finally {
       setLoadingPlan(false);
     }
@@ -82,9 +50,8 @@ export default function Nutrition() {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header
     doc.setFillColor(232, 93, 117);
-    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.rect(0, 0, pageWidth, 40, "F");
 
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
@@ -96,75 +63,33 @@ export default function Nutrition() {
     doc.text(`7-Day ${formData.goal} Meal Plan`, pageWidth / 2, 28, { align: "center" });
     doc.text(`Diet: ${formData.diet} | Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, 35, { align: "center" });
 
-    // Reset text color
     doc.setTextColor(0, 0, 0);
 
-    // Stats Box
-    if (totalStats) {
-      doc.setFillColor(249, 250, 251);
-      doc.roundedRect(14, 48, pageWidth - 28, 25, 3, 3, 'F');
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "bold");
-      doc.text("Weekly Overview", 20, 58);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Avg Daily Calories: ~${totalStats.avgDailyCalories} kcal`, 20, 66);
-      doc.text(`Total Weekly Calories: ~${totalStats.totalWeeklyCalories} kcal`, 100, 66);
-    }
+    const days = ["day1", "day2", "day3", "day4", "day5", "day6", "day7"];
+    const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-    // Daily Regulars
-    if (formData.dailyRegulars) {
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Your Daily Regulars: ${formData.dailyRegulars}`, 14, 80);
-      doc.setTextColor(0, 0, 0);
-    }
-
-    // Table Data
-    const tableBody = generatedPlan.map(day => [
-      day.day,
-      `${day.breakfast}\n(${day.calories_breakfast})`,
-      `${day.lunch}\n(${day.calories_lunch})`,
-      `${day.snack}\n(${day.calories_snack})`,
-      `${day.dinner}\n(${day.calories_dinner})`
-    ]);
-
-    doc.autoTable({
-      head: [['Day', 'Breakfast', 'Lunch', 'Snack', 'Dinner']],
-      body: tableBody,
-      startY: formData.dailyRegulars ? 88 : 80,
-      styles: {
-        fontSize: 9,
-        cellPadding: 4,
-        lineColor: [220, 220, 220],
-        lineWidth: 0.5
-      },
-      headStyles: {
-        fillColor: [232, 93, 117],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        halign: 'center'
-      },
-      alternateRowStyles: {
-        fillColor: [252, 252, 252]
-      },
-      columnStyles: {
-        0: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
-        1: { cellWidth: 42 },
-        2: { cellWidth: 42 },
-        3: { cellWidth: 42 },
-        4: { cellWidth: 42 }
-      }
+    const tableBody = days.map((day, idx) => {
+      const d = generatedPlan[day] || {};
+      return [
+        dayNames[idx],
+        d.breakfast || "-",
+        d.lunch || "-",
+        d.dinner || "-",
+        d.snacks || "-"
+      ];
     });
 
-    // Footer
-    const finalY = doc.lastAutoTable.finalY + 15;
-    doc.setFontSize(10);
-    doc.setTextColor(150, 150, 150);
-    doc.text("Stay consistent and healthy! 💪", pageWidth / 2, finalY, { align: "center" });
-    doc.text("Generated by Sai Aerobics AI Nutritionist", pageWidth / 2, finalY + 6, { align: "center" });
+    doc.autoTable({
+      head: [["Day", "Breakfast", "Lunch", "Dinner", "Snacks"]],
+      body: tableBody,
+      startY: 50,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [232, 93, 117], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [252, 252, 252] },
+      columnStyles: { 0: { cellWidth: 25, fontStyle: "bold" } }
+    });
 
-    // Save with proper filename
-    const fileName = `SaiAerobics_${formData.goal.replace(/\s+/g, '_')}_MealPlan.pdf`;
+    const fileName = `SaiAerobics_${formData.goal.replace(/\s+/g, "_")}_MealPlan.pdf`;
     doc.save(fileName);
   };
 
@@ -172,185 +97,88 @@ export default function Nutrition() {
     if (!generatedPlan) return;
     setShareMsg("Sending email...");
 
-    // Build HTML for email
+    const days = ["day1", "day2", "day3", "day4", "day5", "day6", "day7"];
+    const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
     let html = `
       <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #E85D75, #f687a5); padding: 25px; text-align: center; border-radius: 12px 12px 0 0;">
           <h1 style="color: white; margin: 0; font-size: 24px;">Sai Aerobics</h1>
-          <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0;">Your Personalized 7-Day ${formData.goal} Meal Plan</p>
+          <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0;">Your 7-Day ${formData.goal} Meal Plan</p>
         </div>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 0 0 12px 12px;">
-          <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <p style="margin: 0; color: #666;"><strong>Diet Type:</strong> ${formData.diet}</p>
-            ${formData.allergies ? `<p style="margin: 8px 0 0 0; color: #666;"><strong>Allergies Avoided:</strong> ${formData.allergies}</p>` : ''}
-            ${formData.dailyRegulars ? `<p style="margin: 8px 0 0 0; color: #666;"><strong>Your Daily Regulars:</strong> ${formData.dailyRegulars}</p>` : ''}
-            ${totalStats ? `<p style="margin: 8px 0 0 0; color: #666;"><strong>Avg Daily Calories:</strong> ~${totalStats.avgDailyCalories} kcal</p>` : ''}
-          </div>
-
-          <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden;">
-            <thead>
-              <tr style="background: #E85D75;">
-                <th style="padding: 12px; color: white; text-align: left;">Day</th>
-                <th style="padding: 12px; color: white; text-align: left;">Breakfast</th>
-                <th style="padding: 12px; color: white; text-align: left;">Lunch</th>
-                <th style="padding: 12px; color: white; text-align: left;">Snack</th>
-                <th style="padding: 12px; color: white; text-align: left;">Dinner</th>
-              </tr>
-            </thead>
-            <tbody>
+        <table style="width: 100%; border-collapse: collapse; background: white;">
+          <thead>
+            <tr style="background: #E85D75;">
+              <th style="padding: 12px; color: white;">Day</th>
+              <th style="padding: 12px; color: white;">Breakfast</th>
+              <th style="padding: 12px; color: white;">Lunch</th>
+              <th style="padding: 12px; color: white;">Dinner</th>
+              <th style="padding: 12px; color: white;">Snacks</th>
+            </tr>
+          </thead>
+          <tbody>
     `;
 
-    generatedPlan.forEach((day, index) => {
-      const bgColor = index % 2 === 0 ? '#ffffff' : '#f9fafb';
+    days.forEach((day, idx) => {
+      const d = generatedPlan[day] || {};
+      const bgColor = idx % 2 === 0 ? "#ffffff" : "#f9fafb";
       html += `
         <tr style="background: ${bgColor};">
-          <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: bold; color: #E85D75;">${day.day}</td>
-          <td style="padding: 12px; border-bottom: 1px solid #eee;">${day.breakfast}<br><small style="color: #888;">${day.calories_breakfast}</small></td>
-          <td style="padding: 12px; border-bottom: 1px solid #eee;">${day.lunch}<br><small style="color: #888;">${day.calories_lunch}</small></td>
-          <td style="padding: 12px; border-bottom: 1px solid #eee;">${day.snack}<br><small style="color: #888;">${day.calories_snack}</small></td>
-          <td style="padding: 12px; border-bottom: 1px solid #eee;">${day.dinner}<br><small style="color: #888;">${day.calories_dinner}</small></td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee; font-weight: bold;">${dayNames[idx]}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee;">${d.breakfast || "-"}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee;">${d.lunch || "-"}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee;">${d.dinner || "-"}</td>
+          <td style="padding: 12px; border-bottom: 1px solid #eee;">${d.snacks || "-"}</td>
         </tr>
       `;
     });
 
-    html += `
-            </tbody>
-          </table>
-          
-          <div style="text-align: center; margin-top: 25px; padding: 20px; background: white; border-radius: 8px;">
-            <p style="color: #666; margin: 0;">Stay consistent and healthy! 💪</p>
-            <p style="color: #999; font-size: 12px; margin: 10px 0 0 0;">Generated by Sai Aerobics AI Nutritionist</p>
-          </div>
-        </div>
-      </div>
-    `;
+    html += `</tbody></table></div>`;
 
     try {
       await shareMealPlanEmail(html, formData.goal);
-      setShareMsg("✅ Email sent successfully!");
+      setShareMsg("Email sent successfully!");
     } catch (err) {
-      setShareMsg("❌ Failed to send email. Please try again.");
+      setShareMsg("Failed to send email.");
     }
   };
 
-  // Share function for mobile (fixes blob issue)
   const handleShare = async () => {
     if (!generatedPlan) return;
-
-    try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-
-      // Build PDF (same as downloadPDF but for sharing)
-      doc.setFillColor(232, 93, 117);
-      doc.rect(0, 0, pageWidth, 40, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont("helvetica", "bold");
-      doc.text("Sai Aerobics", pageWidth / 2, 18, { align: "center" });
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-      doc.text(`7-Day ${formData.goal} Meal Plan`, pageWidth / 2, 28, { align: "center" });
-      doc.text(`Diet: ${formData.diet} | Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, 35, { align: "center" });
-      doc.setTextColor(0, 0, 0);
-
-      if (totalStats) {
-        doc.setFillColor(249, 250, 251);
-        doc.roundedRect(14, 48, pageWidth - 28, 25, 3, 3, 'F');
-        doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
-        doc.text("Weekly Overview", 20, 58);
-        doc.setFont("helvetica", "normal");
-        doc.text(`Avg Daily Calories: ~${totalStats.avgDailyCalories} kcal`, 20, 66);
-        doc.text(`Total Weekly Calories: ~${totalStats.totalWeeklyCalories} kcal`, 100, 66);
-      }
-
-      const tableBody = generatedPlan.map(day => [
-        day.day,
-        `${day.breakfast}\n(${day.calories_breakfast})`,
-        `${day.lunch}\n(${day.calories_lunch})`,
-        `${day.snack}\n(${day.calories_snack})`,
-        `${day.dinner}\n(${day.calories_dinner})`
-      ]);
-
-      doc.autoTable({
-        head: [['Day', 'Breakfast', 'Lunch', 'Snack', 'Dinner']],
-        body: tableBody,
-        startY: 80,
-        styles: { fontSize: 9, cellPadding: 4 },
-        headStyles: { fillColor: [232, 93, 117], textColor: [255, 255, 255], fontStyle: 'bold' },
-        columnStyles: { 0: { cellWidth: 18, halign: 'center', fontStyle: 'bold' } }
-      });
-
-      // Convert to blob and share
-      const pdfBlob = doc.output('blob');
-      const fileName = `SaiAerobics_${formData.goal.replace(/\s+/g, '_')}_MealPlan.pdf`;
-      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-      if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'My Meal Plan - Sai Aerobics',
-          text: 'Check out my personalized meal plan from Sai Aerobics!'
-        });
-      } else {
-        // Fallback: download
-        downloadPDF();
-      }
-    } catch (err) {
-      console.error("Share error:", err);
-      // Fallback to download
-      downloadPDF();
-    }
+    downloadPDF();
   };
+
+  const days = ["day1", "day2", "day3", "day4", "day5", "day6", "day7"];
+  const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   return (
     <div className="dash">
-      <header className="dash-header" style={{ justifyContent: 'center' }}>
+      <header className="dash-header" style={{ justifyContent: "center" }}>
         <h2>Nutrition Plan 🥗</h2>
       </header>
 
       <div className="fade-in">
         <div style={{ background: "var(--card)", padding: "24px", borderRadius: "24px", boxShadow: "0 8px 30px rgba(0,0,0,0.04)", maxWidth: "700px", margin: "0 auto" }}>
-
           {!generatedPlan ? (
             <>
               <h3 style={{ marginTop: 0 }}>Create Your 7-Day Meal Plan 🥑</h3>
               <p style={{ color: "var(--text-muted)" }}>Get a personalized weekly diet plan based on your body and goals.</p>
 
-              {/* Form Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginTop: "20px" }}>
                 <div>
                   <label className="modern-label">Weight (kg) *</label>
-                  <input
-                    type="number"
-                    className="modern-input"
-                    placeholder="e.g. 65"
-                    value={formData.weight}
-                    onChange={e => setFormData({ ...formData, weight: e.target.value })}
-                  />
+                  <input type="number" className="modern-input" placeholder="e.g. 65" value={formData.weight} onChange={e => setFormData({ ...formData, weight: e.target.value })} />
                 </div>
                 <div>
                   <label className="modern-label">Height (cm or ft) *</label>
-                  <input
-                    type="text"
-                    className="modern-input"
-                    placeholder="e.g. 165 or 5'5"
-                    value={formData.height}
-                    onChange={e => setFormData({ ...formData, height: e.target.value })}
-                  />
+                  <input type="text" className="modern-input" placeholder="e.g. 165 or 5'5" value={formData.height} onChange={e => setFormData({ ...formData, height: e.target.value })} />
                 </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginTop: "15px" }}>
                 <div>
                   <label className="modern-label">Goal</label>
-                  <select
-                    className="modern-input"
-                    value={formData.goal}
-                    onChange={e => setFormData({ ...formData, goal: e.target.value })}
-                  >
+                  <select className="modern-input" value={formData.goal} onChange={e => setFormData({ ...formData, goal: e.target.value })}>
                     <option value="Weight Loss">Weight Loss</option>
                     <option value="Maintain Weight">Maintain Weight</option>
                     <option value="Muscle Gain">Muscle Gain</option>
@@ -358,11 +186,7 @@ export default function Nutrition() {
                 </div>
                 <div>
                   <label className="modern-label">Diet Type</label>
-                  <select
-                    className="modern-input"
-                    value={formData.diet}
-                    onChange={e => setFormData({ ...formData, diet: e.target.value })}
-                  >
+                  <select className="modern-input" value={formData.diet} onChange={e => setFormData({ ...formData, diet: e.target.value })}>
                     <option value="Vegetarian">Vegetarian</option>
                     <option value="Eggetarian">Eggetarian</option>
                     <option value="Non-Vegetarian">Non-Vegetarian</option>
@@ -373,39 +197,20 @@ export default function Nutrition() {
 
               <div style={{ marginTop: "15px" }}>
                 <label className="modern-label">Allergies (Optional)</label>
-                <input
-                  type="text"
-                  className="modern-input"
-                  placeholder="e.g. Peanuts, Dairy, Gluten"
-                  value={formData.allergies}
-                  onChange={e => setFormData({ ...formData, allergies: e.target.value })}
-                />
+                <input type="text" className="modern-input" placeholder="e.g. Peanuts, Dairy, Gluten" value={formData.allergies} onChange={e => setFormData({ ...formData, allergies: e.target.value })} />
               </div>
 
               <div style={{ marginTop: "15px" }}>
                 <label className="modern-label">Your Daily Regulars (Notes)</label>
-                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0 0 8px 0" }}>
-                  Things you consume daily like tea, coffee, supplements, etc. These will be included in your plan.
-                </p>
-                <textarea
-                  className="modern-input"
-                  rows={2}
-                  placeholder="e.g. Morning tea with less sugar, Black coffee, Almonds..."
-                  value={formData.dailyRegulars}
-                  onChange={e => setFormData({ ...formData, dailyRegulars: e.target.value })}
-                />
+                <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: "0 0 8px 0" }}>Things you consume daily like tea, coffee, supplements, etc.</p>
+                <textarea className="modern-input" rows={2} placeholder="e.g. Morning tea with less sugar, Black coffee, Almonds..." value={formData.dailyRegulars} onChange={e => setFormData({ ...formData, dailyRegulars: e.target.value })} />
               </div>
 
-              <button
-                onClick={handleGeneratePlan}
-                disabled={loadingPlan}
-                className="big-log-btn"
-                style={{ justifyContent: "center", marginTop: "25px", background: "linear-gradient(135deg, #10b981, #059669)", width: "100%" }}
-              >
+              <button onClick={handleGeneratePlan} disabled={loadingPlan} className="big-log-btn" style={{ justifyContent: "center", marginTop: "25px", background: "linear-gradient(135deg, #10b981, #059669)", width: "100%" }}>
                 {loadingPlan ? (
                   <span style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <span className="spinner" style={{ width: "20px", height: "20px" }}></span>
-                    Generating your plan...
+                    Generating...
                   </span>
                 ) : (
                   "✨ Generate My 7-Day Plan"
@@ -414,115 +219,62 @@ export default function Nutrition() {
             </>
           ) : (
             <>
-              {/* Plan Generated View */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: "wrap", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
                 <div>
                   <h3 style={{ margin: 0 }}>Your 7-Day Plan</h3>
-                  <p style={{ margin: "5px 0 0 0", color: "var(--text-muted)", fontSize: "0.9rem" }}>
-                    {formData.goal} • {formData.diet}
-                  </p>
+                  <p style={{ margin: "5px 0 0 0", color: "var(--text-muted)", fontSize: "0.9rem" }}>{formData.goal} • {formData.diet}</p>
                 </div>
-                <button
-                  onClick={() => { setGeneratedPlan(null); setTotalStats(null); }}
-                  style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--text-muted)", background: "var(--bg)", cursor: "pointer" }}
-                >
+                <button onClick={() => setGeneratedPlan(null)} style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--text-muted)", background: "var(--bg)", cursor: "pointer" }}>
                   ← New Plan
                 </button>
               </div>
 
-              {/* Stats Card */}
-              {totalStats && (
-                <div style={{
-                  background: "linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.1))",
-                  padding: "20px",
-                  borderRadius: "16px",
-                  marginTop: "20px",
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "15px"
-                }}>
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.8rem" }}>Avg Daily Calories</p>
-                    <p style={{ margin: "5px 0 0 0", fontSize: "1.5rem", fontWeight: "bold", color: "#10b981" }}>~{totalStats.avgDailyCalories}</p>
-                    <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.75rem" }}>kcal/day</p>
-                  </div>
-                  <div style={{ textAlign: "center" }}>
-                    <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.8rem" }}>Weekly Total</p>
-                    <p style={{ margin: "5px 0 0 0", fontSize: "1.5rem", fontWeight: "bold", color: "#10b981" }}>~{totalStats.totalWeeklyCalories}</p>
-                    <p style={{ margin: 0, color: "var(--text-muted)", fontSize: "0.75rem" }}>kcal/week</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Daily Regulars Note */}
-              {formData.dailyRegulars && (
-                <div style={{
-                  background: "rgba(232, 93, 117, 0.08)",
-                  padding: "12px 16px",
-                  borderRadius: "12px",
-                  marginTop: "15px",
-                  borderLeft: "4px solid var(--primary)"
-                }}>
-                  <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-main)" }}>
-                    <strong>Your Daily Regulars:</strong> {formData.dailyRegulars}
-                  </p>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '10px', marginTop: "20px", flexWrap: "wrap" }}>
-                <button onClick={downloadPDF} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: "var(--primary)", color: "white", cursor: "pointer", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "10px", marginTop: "20px", flexWrap: "wrap" }}>
+                <button onClick={downloadPDF} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: "var(--primary)", color: "white", cursor: "pointer", fontWeight: "600" }}>
                   📄 Download PDF
                 </button>
-                <button onClick={handleShare} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: "#6366f1", color: "white", cursor: "pointer", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                <button onClick={handleShare} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: "#6366f1", color: "white", cursor: "pointer", fontWeight: "600" }}>
                   📤 Share
                 </button>
-                <button onClick={handleEmailPlan} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: "#10b981", color: "white", cursor: "pointer", fontWeight: "600", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                <button onClick={handleEmailPlan} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: "#10b981", color: "white", cursor: "pointer", fontWeight: "600" }}>
                   📧 Email Me
                 </button>
               </div>
 
-              {shareMsg && <p style={{ color: shareMsg.includes("✅") ? "green" : "red", fontSize: "0.9rem", marginTop: "10px", textAlign: "center" }}>{shareMsg}</p>}
+              {shareMsg && <p style={{ color: shareMsg.includes("success") ? "green" : "red", fontSize: "0.9rem", marginTop: "10px", textAlign: "center" }}>{shareMsg}</p>}
 
-              {/* Week Plan Grid */}
               <div style={{ display: "grid", gap: "15px", marginTop: "25px" }}>
-                {generatedPlan.map((day, index) => (
-                  <div key={index} style={{
-                    background: "var(--bg)",
-                    padding: "20px",
-                    borderRadius: "16px",
-                    border: "1px solid var(--border)"
-                  }}>
-                    <h4 style={{ margin: "0 0 15px 0", color: "var(--primary)", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ background: "var(--primary)", color: "white", padding: "4px 12px", borderRadius: "20px", fontSize: "0.85rem" }}>
-                        {day.day}
-                      </span>
-                    </h4>
+                {days.map((day, index) => {
+                  const d = generatedPlan[day] || {};
+                  return (
+                    <div key={day} style={{ background: "var(--bg)", padding: "20px", borderRadius: "16px", border: "1px solid var(--border)" }}>
+                      <h4 style={{ margin: "0 0 15px 0", color: "var(--primary)" }}>
+                        <span style={{ background: "var(--primary)", color: "white", padding: "4px 12px", borderRadius: "20px", fontSize: "0.85rem" }}>
+                          {dayNames[index]}
+                        </span>
+                      </h4>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
-                      <div>
-                        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Breakfast</p>
-                        <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{day.breakfast}</p>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "0.8rem", color: "#10b981" }}>{day.calories_breakfast}</p>
-                      </div>
-                      <div>
-                        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Lunch</p>
-                        <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{day.lunch}</p>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "0.8rem", color: "#10b981" }}>{day.calories_lunch}</p>
-                      </div>
-                      <div>
-                        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Snack</p>
-                        <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{day.snack}</p>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "0.8rem", color: "#10b981" }}>{day.calories_snack}</p>
-                      </div>
-                      <div>
-                        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Dinner</p>
-                        <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{day.dinner}</p>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "0.8rem", color: "#10b981" }}>{day.calories_dinner}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
+                        <div>
+                          <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Breakfast</p>
+                          <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{d.breakfast || "-"}</p>
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Lunch</p>
+                          <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{d.lunch || "-"}</p>
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Dinner</p>
+                          <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{d.dinner || "-"}</p>
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Snacks</p>
+                          <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{d.snacks || "-"}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </>
           )}
