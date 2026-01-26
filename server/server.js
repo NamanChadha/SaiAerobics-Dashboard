@@ -660,17 +660,36 @@ app.post("/weight", authenticate, async (req, res) => {
   }
 });
 
-// NUTRITION: AI Diet Plan - Production Ready with Calories & Macros
+// NUTRITION: AI Diet Plan - Production Ready with Calories & Macros (PAID MEMBERS ONLY)
 app.post("/nutrition-plan", authenticate, async (req, res) => {
   try {
     const { weight, height, goal, diet, allergies, dailyRegulars } = req.body;
     const userId = req.user.id;
 
-    const userResult = await pool.query("SELECT name FROM users WHERE id=$1", [userId]);
+    // Check subscription status
+    const userResult = await pool.query(
+      "SELECT name, payment_status, expiry_date FROM users WHERE id=$1",
+      [userId]
+    );
     if (userResult.rowCount === 0) {
       return res.status(404).json({ success: false, error: "User not found" });
     }
-    const userName = userResult.rows[0].name || "User";
+
+    const user = userResult.rows[0];
+    const userName = user.name || "User";
+
+    // Check if user has active subscription
+    const isPaid = user.payment_status === "PAID" &&
+      user.expiry_date &&
+      new Date(user.expiry_date) > new Date();
+
+    if (!isPaid) {
+      return res.status(403).json({
+        success: false,
+        error: "SUBSCRIPTION_REQUIRED",
+        message: "This feature is available for premium members only. Please subscribe to access personalized meal plans."
+      });
+    }
 
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_KEY) {

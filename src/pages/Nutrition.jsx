@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import "../styles/dashboard.css";
-import { generateMealPlan, shareMealPlanEmail } from "../api";
+import { generateMealPlan, shareMealPlanEmail, getDashboardData } from "../api";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function Nutrition() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     weight: "",
     height: "",
@@ -17,6 +19,28 @@ export default function Nutrition() {
   const [generatedPlan, setGeneratedPlan] = useState(null);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [shareMsg, setShareMsg] = useState("");
+  const [isPaidMember, setIsPaidMember] = useState(null); // null = loading
+  const [checkingSubscription, setCheckingSubscription] = useState(true);
+
+  // Check subscription status on mount
+  useEffect(() => {
+    const checkSubscription = async () => {
+      try {
+        const data = await getDashboardData();
+        // Check if user has valid subscription
+        const hasPaid = data.payment_status === "PAID" &&
+          data.expiry_date &&
+          new Date(data.expiry_date) > new Date();
+        setIsPaidMember(hasPaid);
+      } catch (err) {
+        console.error("Failed to check subscription:", err);
+        setIsPaidMember(false);
+      } finally {
+        setCheckingSubscription(false);
+      }
+    };
+    checkSubscription();
+  }, []);
 
   const handleGeneratePlan = async () => {
     if (!formData.weight || !formData.height) {
@@ -30,6 +54,11 @@ export default function Nutrition() {
 
     try {
       const res = await generateMealPlan(formData);
+
+      if (res.error === "SUBSCRIPTION_REQUIRED") {
+        setIsPaidMember(false);
+        return;
+      }
 
       if (res.success && res.plan) {
         setGeneratedPlan(res.plan);
@@ -75,7 +104,6 @@ export default function Nutrition() {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
 
-      // Header
       doc.setFillColor(232, 93, 117);
       doc.rect(0, 0, pageWidth, 40, "F");
 
@@ -91,7 +119,6 @@ export default function Nutrition() {
 
       doc.setTextColor(0, 0, 0);
 
-      // Build table data with calories & macros
       const tableBody = [];
       days.forEach((day, idx) => {
         const dayPlan = generatedPlan[day] || {};
@@ -109,7 +136,6 @@ export default function Nutrition() {
           tableBody.push(row);
         });
 
-        // Day total row
         tableBody.push([
           "",
           { content: "Day Total", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
@@ -134,7 +160,6 @@ export default function Nutrition() {
         }
       });
 
-      // Footer
       const finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
@@ -200,6 +225,112 @@ export default function Nutrition() {
       setShareMsg("❌ Failed to send email. Please try again.");
     }
   };
+
+  // Loading state
+  if (checkingSubscription) {
+    return (
+      <div className="dash">
+        <header className="dash-header" style={{ justifyContent: "center" }}>
+          <h2>Nutrition Plan 🥗</h2>
+        </header>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "300px" }}>
+          <span className="spinner" style={{ width: "40px", height: "40px" }}></span>
+        </div>
+      </div>
+    );
+  }
+
+  // Subscription blocker for non-paid members
+  if (!isPaidMember) {
+    return (
+      <div className="dash">
+        <header className="dash-header" style={{ justifyContent: "center" }}>
+          <h2>Nutrition Plan 🥗</h2>
+        </header>
+
+        <div className="fade-in">
+          <div style={{
+            background: "var(--card)",
+            padding: "40px",
+            borderRadius: "24px",
+            boxShadow: "0 8px 30px rgba(0,0,0,0.08)",
+            maxWidth: "500px",
+            margin: "0 auto",
+            textAlign: "center"
+          }}>
+            <div style={{
+              width: "80px",
+              height: "80px",
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #fef3c7, #fde68a)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 20px",
+              fontSize: "36px"
+            }}>
+              🔒
+            </div>
+
+            <h3 style={{ margin: "0 0 10px 0", fontSize: "1.4rem" }}>Premium Feature</h3>
+            <p style={{ color: "var(--text-muted)", margin: "0 0 25px 0", lineHeight: "1.6" }}>
+              Personalized 7-day meal plans with calories & macros are available exclusively for premium members.
+            </p>
+
+            <div style={{
+              background: "var(--bg)",
+              borderRadius: "16px",
+              padding: "20px",
+              marginBottom: "25px",
+              border: "1px solid var(--border)"
+            }}>
+              <h4 style={{ margin: "0 0 15px 0", color: "var(--primary)" }}>What you'll get:</h4>
+              <div style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ color: "#10b981" }}>✓</span>
+                  <span>AI-powered personalized meal plans</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ color: "#10b981" }}>✓</span>
+                  <span>Detailed calorie & macro breakdown</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ color: "#10b981" }}>✓</span>
+                  <span>Download PDF & email your plan</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ color: "#10b981" }}>✓</span>
+                  <span>Allergy & preference customization</span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => navigate("/membership")}
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: "12px",
+                border: "none",
+                background: "linear-gradient(135deg, #E85D75, #f687a5)",
+                color: "white",
+                fontWeight: "700",
+                fontSize: "1rem",
+                cursor: "pointer",
+                boxShadow: "0 4px 15px rgba(232, 93, 117, 0.3)"
+              }}
+            >
+              💎 Subscribe Now
+            </button>
+
+            <p style={{ marginTop: "15px", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              Starting at just ₹500/month
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="dash">
@@ -279,7 +410,6 @@ export default function Nutrition() {
                 </button>
               </div>
 
-              {/* Action Buttons */}
               <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
                 <button onClick={downloadPDF} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: "var(--primary)", color: "white", cursor: "pointer", fontWeight: "600", fontSize: "0.95rem" }}>
                   📄 Download PDF
@@ -301,7 +431,6 @@ export default function Nutrition() {
                 </p>
               )}
 
-              {/* Meal Plan Display with Calories & Macros */}
               <div style={{ display: "grid", gap: "15px", marginTop: "25px" }}>
                 {days.map((day, index) => {
                   const dayPlan = generatedPlan[day] || {};
