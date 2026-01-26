@@ -279,7 +279,11 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <label className="modern-label">Membership Tier</label>
-                <select className="modern-input" value={editForm.plan || 'Silver'} onChange={e => setEditForm({ ...editForm, plan: e.target.value })}>
+                <select
+                  className="modern-input"
+                  value={editForm.tier ? editForm.tier.charAt(0).toUpperCase() + editForm.tier.slice(1) : 'Silver'}
+                  onChange={e => setEditForm({ ...editForm, tier: e.target.value })}
+                >
                   <option value="Silver">Silver</option>
                   <option value="Gold">Gold</option>
                   <option value="Platinum">Platinum</option>
