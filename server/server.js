@@ -1168,7 +1168,7 @@ app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
   try {
     // Basic user info + simplified streak/last activity integration
     const query = `
-      SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, u.tier, u.height, s.last_logged, s.current_streak
+      SELECT u.id, u.name, u.email, u.phone, u.membership_end, u.active, u.tier, u.plan, u.batch_time, u.height, s.last_logged, s.current_streak
       FROM users u
       LEFT JOIN streaks s ON u.id = s.user_id
       WHERE u.role = 'member'
@@ -1185,11 +1185,12 @@ app.get("/admin/users", authenticate, requireAdmin, async (req, res) => {
 app.post("/admin/users/:id/update", authenticate, requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, phone, email, height, tier, batch_time } = req.body;
+    const { name, phone, email, height, plan, tier, batch_time } = req.body;
+    const planToSet = plan || tier; // Handle both
 
     await pool.query(
-      "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, tier=$5, batch_time=$6 WHERE id=$7",
-      [name, phone, email, height, tier, batch_time, id]
+      "UPDATE users SET name=$1, phone=$2, email=$3, height=$4, plan=$5, batch_time=$6 WHERE id=$7",
+      [name, phone, email, height, planToSet, batch_time, id]
     );
     res.json({ message: "User updated successfully" });
   } catch (err) {

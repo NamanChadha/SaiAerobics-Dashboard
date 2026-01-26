@@ -212,7 +212,7 @@ export default function AdminDashboard() {
                       <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{u.phone}</div>
                     </td>
                     <td className="col-plan" style={{ padding: "15px" }}>
-                      <span className={`badge-tier ${u.tier?.toLowerCase() || 'silver'}`}>{u.tier || 'Silver'}</span>
+                      <span className={`badge-tier ${u.plan?.toLowerCase() || u.tier?.toLowerCase() || 'silver'}`}>{u.plan || u.tier || 'Silver'}</span>
                     </td>
                     <td className="col-batch" style={{ padding: "15px" }}>
                       <div className="mobile-label">Batch:</div>
@@ -278,7 +278,7 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <label className="modern-label">Membership Tier</label>
-                <select className="modern-input" value={editForm.tier || 'Silver'} onChange={e => setEditForm({ ...editForm, tier: e.target.value })}>
+                <select className="modern-input" value={editForm.plan || 'Silver'} onChange={e => setEditForm({ ...editForm, plan: e.target.value })}>
                   <option value="Silver">Silver</option>
                   <option value="Gold">Gold</option>
                   <option value="Platinum">Platinum</option>
