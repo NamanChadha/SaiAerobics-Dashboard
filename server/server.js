@@ -717,7 +717,7 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
 
     // Check subscription status
     const userResult = await pool.query(
-      "SELECT name, payment_status, expiry_date, plan FROM users WHERE id=$1",
+      "SELECT name, payment_status, expiry_date, tier FROM users WHERE id=$1",
       [userId]
     );
     if (userResult.rowCount === 0) {
@@ -728,7 +728,7 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
     const userName = user.name || "User";
 
     // Check if user has active subscription OR is Gold tier member
-    const isGoldMember = user.plan && user.plan.toLowerCase() === "gold";
+    const isGoldMember = user.tier && user.tier.toLowerCase() === "gold";
     const hasPaidSubscription = user.payment_status === "PAID" &&
       user.expiry_date &&
       new Date(user.expiry_date) > new Date();
