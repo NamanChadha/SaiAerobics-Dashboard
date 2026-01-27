@@ -755,35 +755,35 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
     const generationSeed = seed || Date.now();
     console.log("🌱 Generation Seed:", generationSeed);
 
-    // Fetch recent meal plans to avoid repetition across regenerations
+    // Fetch recent meal plans to avoid repetition across regenerations (# DISABLED due to DB schema error)
     let recentFoods = [];
-    try {
-      const recentPlans = await pool.query(
-        `SELECT plan FROM nutrition_plans 
-         WHERE user_id=$1 
-         ORDER BY created_at DESC 
-         LIMIT 2`,
-        [userId]
-      );
+    // try {
+    //   const recentPlans = await pool.query(
+    //     `SELECT plan FROM nutrition_plans 
+    //      WHERE user_id=$1 
+    //      ORDER BY created_at DESC 
+    //      LIMIT 2`,
+    //     [userId]
+    //   );
 
-      if (recentPlans.rowCount > 0) {
-        recentPlans.rows.forEach(row => {
-          const plan = row.plan;
-          Object.keys(plan).forEach(day => {
-            Object.keys(plan[day]).forEach(mealType => {
-              const meal = plan[day][mealType];
-              if (meal && meal.meal) {
-                recentFoods.push(meal.meal);
-              }
-            });
-          });
-        });
-        // Get unique foods
-        recentFoods = [...new Set(recentFoods)];
-      }
-    } catch (e) {
-      console.error("Failed to fetch recent plans (non-fatal):", e.message);
-    }
+    //   if (recentPlans.rowCount > 0) {
+    //     recentPlans.rows.forEach(row => {
+    //       const plan = row.plan;
+    //       Object.keys(plan).forEach(day => {
+    //         Object.keys(plan[day]).forEach(mealType => {
+    //           const meal = plan[day][mealType];
+    //           if (meal && meal.meal) {
+    //             recentFoods.push(meal.meal);
+    //           }
+    //         });
+    //       });
+    //     });
+    //     // Get unique foods
+    //     recentFoods = [...new Set(recentFoods)];
+    //   }
+    // } catch (e) {
+    //   console.error("Failed to fetch recent plans (non-fatal):", e.message);
+    // }
 
     const prompt = `You are a professional clinical nutritionist and meal-planning AI used in a production SaaS app.
 
@@ -937,14 +937,14 @@ Replace with actual diverse foods. Ensure NO repetition within the week. Output 
       plan = generateFallbackPlan(goal, diet);
     }
 
-    try {
-      await pool.query(
-        `INSERT INTO nutrition_plans (user_id, goal, diet_type, allergies, notes, plan) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [userId, goal, diet, allergies, dailyRegulars, JSON.stringify(plan)]
-      );
-    } catch (dbErr) {
-      console.error("DB Save Error (non-fatal):", dbErr.message);
-    }
+    // try {
+    //   await pool.query(
+    //     `INSERT INTO nutrition_plans (user_id, goal, diet_type, allergies, notes, plan) VALUES ($1, $2, $3, $4, $5, $6)`,
+    //     [userId, goal, diet, allergies, dailyRegulars, JSON.stringify(plan)]
+    //   );
+    // } catch (dbErr) {
+    //   console.error("DB Save Error (non-fatal):", dbErr.message);
+    // }
 
     return res.json({ success: true, plan });
 
