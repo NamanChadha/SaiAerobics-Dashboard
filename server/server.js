@@ -758,116 +758,60 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
     // Fetch recent meal plans to avoid repetition across regenerations (# DISABLED due to DB schema error)
     let recentFoods = [];
 
-    const prompt = `You are a professional clinical nutritionist and meal-planning AI used in a production SaaS app.
+    const prompt = `You are a professional clinical nutritionist and meal-planning AI used in a real production fitness app.
 
-You MUST generate distinct meal plans every time this prompt is called, even if user inputs are similar.
+YOU are the sole authority for deciding meals, snacks, and food choices.
+No backend logic will restrict, filter, replace, or override your food decisions.
 
-⚠️ CRITICAL RULES (NON-NEGOTIABLE):
-
-You are NOT allowed to reuse meals, food combinations, or daily structures from previous responses.
-
-Treat each request as sampling from a large solution space — never converge to a "default" plan.
-
-Small input changes (goal, diet, allergies, height, weight, seed) MUST significantly affect output.
-
-INPUT VARIABLES (STRICTLY ENFORCE):
-
+STRICT INPUTS:
 Weight: ${weight} kg
 Height: ${height} cm
 Goal: ${goal}
 Diet Type: ${diet}
 Allergies: ${allergies || "None"}
 Daily Regulars: ${dailyRegulars || "None"}
-Generation Seed: ${generationSeed}
+Seed: ${generationSeed}
 
-RANDOMIZATION & VARIATION RULES (MANDATORY):
+DIET ENFORCEMENT (MANDATORY):
+- Vegetarian → NO eggs, NO meat, NO fish
+- Eggetarian → Eggs allowed, NO meat, NO fish
+- Non-Vegetarian → Eggs, chicken, fish allowed; rotate proteins
+- Vegan → NO dairy, NO eggs, NO animal products
 
-Use the Generation Seed to:
-- Randomize ingredient selection
-- Randomize cuisine (Indian, Mediterranean, Asian, Continental, etc.)
-- Randomize meal timing and composition
-- Two responses with different seeds must never be structurally identical
+DAILY REGULARS (STRONG PREFERENCE):
+- Treat daily regulars as habitual foods
+- Integrate them naturally (example: morning chai, evening coffee)
+- Do NOT ignore them
 
-STRUCTURAL CONSTRAINTS:
+SNACKS & MEALS:
+- You are NOT restricted to any predefined snack or meal list
+- Choose snacks freely based on diet and goal
+- Meals must be realistic and culturally appropriate
 
-- Generate a 7-day plan
-- Each day MUST be unique
-- Each meal MUST differ across days
-- Meals must be realistic, culturally relevant, and diet-compliant
+VARIETY & RANDOMIZATION:
+- Use the seed to ensure different plans every generation
+- No meal may repeat within the 7-day plan
 
 NUTRITION LOGIC:
+- Weight Loss → calorie deficit
+- Maintain Weight → maintenance calories
+- Muscle Gain → calorie surplus with high protein
 
-Calories and macros MUST match the user's goal:
-${goal === "Weight Loss" ? "- Weight Loss → Calorie deficit (1400-1600 kcal/day)" : ""}
-${goal === "Maintain Weight" ? "- Maintain Weight → Maintenance calories (1800-2000 kcal/day)" : ""}
-${goal === "Muscle Gain" ? "- Muscle Gain → Calorie surplus with high protein (2200-2500 kcal/day)" : ""}
-
-- Protein distribution must vary daily
-- Avoid repeating staple foods more than twice per week
-
-ALLERGY & DIET ENFORCEMENT:
-
-Absolutely ZERO tolerance for allergens:
-${allergies ? `- User is allergic to: ${allergies}` : '- No allergies'}
-- Do NOT include these ingredients in ANY form (including oils, derivatives, traces)
-- Example: If peanut allergy, avoid peanuts, peanut oil, groundnut chutney
-- Example: If dairy allergy, avoid milk, paneer, curd, ghee, butter
-
-Strictly follow diet type:
-${diet === "Vegetarian" ? "- STRICTLY Vegetarian: NO eggs, NO meat, NO fish, NO chicken" : ""}
-${diet === "Eggetarian" ? "- Eggetarian: Eggs allowed, NO meat, NO fish, NO chicken" : ""}
-${diet === "Non-Vegetarian" ? "- Non-Vegetarian: Include eggs, chicken, fish. ROTATE proteins - don't use same protein every day" : ""}
-${diet === "Vegan" ? "- STRICTLY Vegan: NO dairy, NO eggs, NO meat, NO fish, NO honey" : ""}
-
-DAILY REGULARS PREFERENCE (Soft Bias):
-${dailyRegulars ? `- User regularly eats: ${dailyRegulars}` : '- No specific regulars mentioned'}
-- Prefer incorporating these foods naturally
-- Change quantities, combinations, and accompanying items
-- Do NOT create exact repetitive meals
-
-PORTION SIZES (MANDATORY):
-- For EACH meal, provide detailed portion information
-- Include weight in grams AND Indian household measure
-- Format: "Rice: 150g (1 medium bowl), Dal: 120g (1 katori), Roti: 1 roti (30g atta)"
-- Be specific with measurements like: bowl, katori, cup, tablespoon, piece, slice
-
-VARIETY GENERATION:
-- Avoid these recently used foods: ${recentFoods.length > 0 ? recentFoods.slice(0, 10).join(", ") : "None"}
-- Create fresh variety with NEW food combinations
-- Use the seed (${generationSeed}) to ensure randomness
-
-STRICT NO-REPETITION RULES:
-1. NO breakfast should repeat across the 7 days
-2. NO lunch should repeat across the 7 days
-3. NO dinner should repeat across the 7 days
-4. Same dal maximum 2 times per week
-5. Same vegetable maximum 2 times per week
-6. Same protein source maximum 3 times per week
-7. For non-veg: rotate proteins (chicken one day, fish another, eggs another)
-8. Paneer maximum 2-3 times per week
-
-OUTPUT FORMAT (STRICT JSON ONLY):
+OUTPUT FORMAT (JSON ONLY):
 {
   "day1": {
-    "breakfast": {
-      "meal": "food item description",
-      "portions": "detailed portion sizes with grams and Indian measures",
-      "calories": number,
-      "protein": number,
-      "carbs": number,
-      "fat": number
-    },
-    ...
-  }
+    "breakfast": { "meal": "...", "portions": "...", "calories": number, "protein": number, "carbs": number, "fat": number },
+    "lunch": { ... },
+    "dinner": { ... },
+    "snacks": { ... }
+  },
   ...
 }
 
 ❌ No explanations
-❌ No repeated meals
-❌ No generic plans
 ❌ No markdown
-
-Replace with actual diverse foods. Ensure NO repetition within the week. Output ONLY the JSON object.`;
+❌ No generic templates
+❌ Do NOT ignore diet or daily regulars`;
 
     console.log("📤 Sending request to Gemini API...");
     const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
@@ -1277,7 +1221,7 @@ app.post("/nutrition", authenticate, async (req, res) => {
       return res.json({ plan: "AI service not configured. Drink water and eat veggies!" });
     }
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GEMINI_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
