@@ -870,7 +870,7 @@ OUTPUT FORMAT (STRICT JSON ONLY):
 Replace with actual diverse foods. Ensure NO repetition within the week. Output ONLY the JSON object.`;
 
     console.log("📤 Sending request to Gemini API...");
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
