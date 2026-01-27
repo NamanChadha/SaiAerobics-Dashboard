@@ -16,14 +16,12 @@ export async function sendEmail({ to, subject, html }) {
         throw new Error("Resend API Key missing");
     }
 
-    // Use configured sender or verified domain default
-    // Resend Default: "Sai Aerobics <no-reply@mail.saiaerobics.in>"
-    // This removes the "testing only" restriction.
-    const from = process.env.EMAIL_FROM || "no-reply@mail.saiaerobics.in";
+    // Use the full sender string from environment or default to verified domain
+    const sender = process.env.EMAIL_FROM || "Sai Aerobics <no-reply@mail.saiaerobics.in>";
 
     try {
         const { data, error } = await resend.emails.send({
-            from: `Sai Aerobics <${from}>`,
+            from: sender,
             to,
             subject,
             html
