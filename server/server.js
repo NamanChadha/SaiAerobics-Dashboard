@@ -12,6 +12,7 @@ import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "./utils/emailService.js";
+
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
 import helmet from "helmet";
@@ -236,8 +237,6 @@ app.get("/auth/google/callback", (req, res, next) => {
 
 
 // SHARE: Email Meal Plan
-import { sendEmail } from "./utils/emailService.js";
-
 app.post("/share/email", authenticate, async (req, res) => {
   try {
     const { planHtml, goal } = req.body;
