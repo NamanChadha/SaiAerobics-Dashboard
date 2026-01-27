@@ -744,12 +744,16 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
     }
 
     const GEMINI_KEY = process.env.GEMINI_API_KEY;
+    console.log("🔑 Checking Gemini Key:", GEMINI_KEY ? "Present" : "Missing");
+
     if (!GEMINI_KEY) {
+      console.log("⚠️ No Gemini Key found. Using fallback plan.");
       return res.json({ success: true, plan: generateFallbackPlan(goal, diet) });
     }
 
     // Generate seed for variety (use provided or create new)
     const generationSeed = seed || Date.now();
+    console.log("🌱 Generation Seed:", generationSeed);
 
     // Fetch recent meal plans to avoid repetition across regenerations
     let recentFoods = [];
@@ -880,37 +884,9 @@ OUTPUT FORMAT (STRICT JSON ONLY):
       "carbs": number,
       "fat": number
     },
-    "lunch": {
-      "meal": "food item description",
-      "portions": "detailed portion sizes",
-      "calories": number,
-      "protein": number,
-      "carbs": number,
-      "fat": number
-    },
-    "dinner": {
-      "meal": "food item description",
-      "portions": "detailed portion sizes",
-      "calories": number,
-      "protein": number,
-      "carbs": number,
-      "fat": number
-    },
-    "snacks": {
-      "meal": "snack item description",
-      "portions": "detailed portion sizes",
-      "calories": number,
-      "protein": number,
-      "carbs": number,
-      "fat": number
-    }
-  },
-  "day2": { ... same structure ... },
-  "day3": { ... same structure ... },
-  "day4": { ... same structure ... },
-  "day5": { ... same structure ... },
-  "day6": { ... same structure ... },
-  "day7": { ... same structure ... }
+    ...
+  }
+  ...
 }
 
 ❌ No explanations
@@ -920,6 +896,7 @@ OUTPUT FORMAT (STRICT JSON ONLY):
 
 Replace with actual diverse foods. Ensure NO repetition within the week. Output ONLY the JSON object.`;
 
+    console.log("📤 Sending request to Gemini API...");
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -936,6 +913,7 @@ Replace with actual diverse foods. Ensure NO repetition within the week. Output 
     let plan = null;
 
     if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+      console.log("✅ Received response from Gemini API");
       let rawText = data.candidates[0].content.parts[0].text;
       rawText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
 
@@ -948,10 +926,14 @@ Replace with actual diverse foods. Ensure NO repetition within the week. Output 
         const parsed = JSON.parse(rawText);
         plan = validateAndRepairPlan(parsed, goal, diet);
       } catch (e) {
-        console.error("JSON Parse Failed:", e.message);
+        console.error("❌ JSON Parse Failed:", e.message);
+        console.error("Raw Text was:", rawText.slice(0, 200) + "..."); // Log first 200 chars
+        console.log("⚠️ Using fallback plan due to parse error.");
         plan = generateFallbackPlan(goal, diet);
       }
     } else {
+      console.error("❌ Invalid response structure from Gemini:", JSON.stringify(data));
+      console.log("⚠️ Using fallback plan due to API error.");
       plan = generateFallbackPlan(goal, diet);
     }
 
