@@ -18,7 +18,7 @@ import helmet from "helmet";
 import xss from "xss-clean";
 import hpp from "hpp";
 import compression from "compression";
-
+import { sendEmail } from "./utils/emailService.js";
 
 
 import cron from "node-cron";
@@ -1509,7 +1509,11 @@ cron.schedule("0 9 * * *", async () => {
 
 async function checkMembershipExpiry() {
   try {
-    if (!process.env.RESEND_API_KEY) return;
+    if (!process.env.RESEND_API_KEY) {
+      console.warn("⚠️ Resend not configured. Skipping expiry emails.");
+      return;
+    }
+
 
     // 7 Days Left
     const sevenDays = await pool.query(
@@ -1543,7 +1547,10 @@ async function sendExpiryEmail(email, name, days) {
             <p>This is a gentle reminder that your gym membership is set to expire in <strong>${days} days</strong>.</p>
             <p>Please renew your plan to continue your fitness journey without interruption!</p>
             <br>
-            <a href="http://localhost:3000" style="background: #6200ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Renew Now</a>
+            <a href="https://www.saiaerobics.in"
+   style="background: #6200ea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+   Renew Now
+</a>
             <p style="margin-top: 20px; color: #666;">Keep pushing! 💪<br>Sai Aerobics Team</p>
         </div>
     `;
