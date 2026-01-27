@@ -1,4 +1,4 @@
-console.log("🔥 SERVER FILE LOADED 🔥");
+console.log("🔥 SERVER FILE LOADED - v2.1 🔥");
 
 import dotenv from "dotenv";
 import path from "path";
@@ -18,7 +18,6 @@ import helmet from "helmet";
 import xss from "xss-clean";
 import hpp from "hpp";
 import compression from "compression";
-import { sendEmail } from "./utils/emailService.js";
 
 
 import cron from "node-cron";
