@@ -11,7 +11,7 @@ import express from "express";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
 import helmet from "helmet";
@@ -1174,24 +1174,20 @@ app.post("/share/email", authenticate, async (req, res) => {
     const user = await pool.query("SELECT email FROM users WHERE id=$1", [req.user.id]);
     const email = user.rows[0]?.email;
 
-    const EMAIL_USER = process.env.EMAIL_USER;
-    const EMAIL_PASS = process.env.EMAIL_PASS;
+    const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-    if (!EMAIL_USER || !EMAIL_PASS) {
-      return res.status(500).json({ error: "Email service not configured on server." });
+    if (!RESEND_API_KEY) {
+      return res.status(500).json({ error: "Email service (Resend) not configured on server." });
     }
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: { user: EMAIL_USER, pass: EMAIL_PASS }
-    });
+    const resend = new Resend(RESEND_API_KEY);
 
-    // Non-blocking send
-    transporter.sendMail({
-      from: `"Sai Aerobics AI" <${EMAIL_USER}>`,
-      to: email,
+    // Use a verified domain sender or onboarding default
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+
+    const { data, error } = await resend.emails.send({
+      from: `Sai Aerobics AI <${fromEmail}>`,
+      to: email, // Resend Free Tier: ONLY sends to the account email unless domain is verified
       subject: `🥗 Your ${goal} Meal Plan`,
       html: `
           <h3>Your Personalized Meal Plan</h3>
@@ -1201,10 +1197,16 @@ app.post("/share/email", authenticate, async (req, res) => {
           <br/>
           <p>Stay healthy!<br/>- Sai Aerobics Team</p>
         `
-    }).then(() => console.log(`✅ Meal plan sent to ${email}`))
-      .catch(e => console.error("❌ Failed to send meal plan:", e));
+    });
 
+    if (error) {
+      console.error("❌ Resend API Error:", error);
+      return res.status(500).json({ error: "Failed to send email via Resend." });
+    }
+
+    console.log(`✅ Meal plan sent to ${email} via Resend. ID: ${data.id}`);
     res.json({ success: true, message: `Email sent to ${email}` });
+
   } catch (err) {
     console.error("Email Share Error:", err);
     res.status(500).json({ error: "Failed to send email." });
