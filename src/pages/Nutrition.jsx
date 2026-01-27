@@ -56,7 +56,13 @@ export default function Nutrition() {
     setShareMsg("");
 
     try {
-      const res = await generateMealPlan(formData);
+      // Add generation seed for variety
+      const requestData = {
+        ...formData,
+        seed: Date.now()
+      };
+
+      const res = await generateMealPlan(requestData);
 
       if (res.error === "SUBSCRIPTION_REQUIRED") {
         setIsPaidMember(false);
@@ -129,10 +135,11 @@ export default function Nutrition() {
 
         mealTypes.forEach((mealType, mealIdx) => {
           const m = getMealData(dayPlan, mealType);
+          const foodWithPortions = m.portions ? `${m.meal}\n${m.portions}` : m.meal || "-";
           const row = [
             mealIdx === 0 ? dayNames[idx] : "",
             mealLabels[mealType],
-            m.meal || "-",
+            foodWithPortions,
             m.calories || "-",
             `P:${m.protein || 0}g C:${m.carbs || 0}g F:${m.fat || 0}g`
           ];
@@ -205,7 +212,8 @@ export default function Nutrition() {
           html += `
             <div style="margin: 8px 0; padding: 8px; background: #f9fafb; border-radius: 6px;">
               <strong style="color: #E85D75;">${mealLabels[mealType]}:</strong> ${m.meal}
-              <span style="color: #666; font-size: 12px; display: block;">${m.calories} kcal | P:${m.protein}g C:${m.carbs}g F:${m.fat}g</span>
+              ${m.portions ? `<br/><span style="color: #888; font-size: 11px;">📏 ${m.portions}</span>` : ''}
+              <span style="color: #666; font-size: 12px; display: block; margin-top: 4px;">${m.calories} kcal | P:${m.protein}g C:${m.carbs}g F:${m.fat}g</span>
             </div>
           `;
         });
@@ -468,6 +476,11 @@ export default function Nutrition() {
                               <div style={{ flex: 1 }}>
                                 <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>{mealLabels[mealType]}</p>
                                 <p style={{ margin: "4px 0 0 0", fontWeight: "500" }}>{m.meal || "-"}</p>
+                                {m.portions && (
+                                  <p style={{ margin: "4px 0 0 0", fontSize: "0.7rem", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                                    📏 {m.portions}
+                                  </p>
+                                )}
                               </div>
                               <div style={{ textAlign: "right", minWidth: "100px" }}>
                                 <p style={{ margin: 0, fontWeight: "600", color: "var(--primary)" }}>{m.calories} kcal</p>

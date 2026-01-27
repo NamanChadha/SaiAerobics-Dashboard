@@ -712,7 +712,7 @@ app.post("/weight", authenticate, async (req, res) => {
 // NUTRITION: AI Diet Plan - Production Ready with Calories & Macros (PAID MEMBERS ONLY)
 app.post("/nutrition-plan", authenticate, async (req, res) => {
   try {
-    const { weight, height, goal, diet, allergies, dailyRegulars } = req.body;
+    const { weight, height, goal, diet, allergies, dailyRegulars, seed } = req.body;
     const userId = req.user.id;
 
     // Check subscription status
@@ -748,17 +748,135 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
       return res.json({ success: true, plan: generateFallbackPlan(goal, diet) });
     }
 
+    // Generate seed for variety (use provided or create new)
+    const generationSeed = seed || Date.now();
+
+    // Fetch recent meal plans to avoid repetition across regenerations
+    let recentFoods = [];
+    try {
+      const recentPlans = await pool.query(
+        `SELECT plan FROM nutrition_plans 
+         WHERE user_id=$1 
+         ORDER BY created_at DESC 
+         LIMIT 2`,
+        [userId]
+      );
+
+      if (recentPlans.rowCount > 0) {
+        recentPlans.rows.forEach(row => {
+          const plan = row.plan;
+          Object.keys(plan).forEach(day => {
+            Object.keys(plan[day]).forEach(mealType => {
+              const meal = plan[day][mealType];
+              if (meal && meal.meal) {
+                recentFoods.push(meal.meal);
+              }
+            });
+          });
+        });
+        // Get unique foods
+        recentFoods = [...new Set(recentFoods)];
+      }
+    } catch (e) {
+      console.error("Failed to fetch recent plans (non-fatal):", e.message);
+    }
+
     const prompt = `You are a nutrition API. Respond with ONLY valid JSON. No markdown. No comments. No extra text.
 
 Create a 7-day ${diet || "Vegetarian"} Indian meal plan with calories and macros.
-User: ${userName}, Weight: ${weight}kg, Goal: ${goal}
+User: ${userName}, Weight: ${weight}kg, Height: ${height}, Goal: ${goal}
 Allergies: ${allergies || "None"}
-Daily items to include: ${dailyRegulars || "None"}
+Daily items user regularly consumes: ${dailyRegulars || "None"}
 
-RESPOND WITH THIS EXACT JSON STRUCTURE ONLY:
-{"day1":{"breakfast":{"meal":"food item","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food item","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food item","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack item","calories":150,"protein":5,"carbs":20,"fat":5}},"day2":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day3":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day4":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day5":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day6":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}},"day7":{"breakfast":{"meal":"food","calories":300,"protein":15,"carbs":40,"fat":10},"lunch":{"meal":"food","calories":500,"protein":25,"carbs":60,"fat":15},"dinner":{"meal":"food","calories":400,"protein":20,"carbs":45,"fat":12},"snacks":{"meal":"snack","calories":150,"protein":5,"carbs":20,"fat":5}}}
+STRICT RULES FOR VARIETY (MANDATORY):
+1. NO breakfast should repeat across the 7 days (each day must have DIFFERENT breakfast)
+2. NO lunch should repeat across the 7 days (each day must have DIFFERENT lunch)
+3. NO dinner should repeat across the 7 days (each day must have DIFFERENT dinner)
+4. Same dal maximum 2 times per week
+5. Same vegetable maximum 2 times per week
+6. Same protein source maximum 3 times per week
+7. For non-veg: rotate proteins (chicken one day, fish another, eggs another) - NOT same protein every day
+8. Paneer maximum 2-3 times per week
 
-Replace food items with actual Indian foods. Keep calories realistic for ${goal}. Output ONLY the JSON object.`;
+ALLERGIES - BLACKLIST (MANDATORY):
+${allergies ? `- User is allergic to: ${allergies}` : '- No allergies'}
+- Do NOT include these ingredients in ANY form (including oils, derivatives, traces)
+- Example: If peanut allergy, avoid peanuts, peanut oil, groundnut chutney
+- Example: If dairy allergy, avoid milk, paneer, curd, ghee, butter
+
+DIET TYPE ENFORCEMENT (MANDATORY):
+${diet === "Vegetarian" ? "- STRICTLY Vegetarian: NO eggs, NO meat, NO fish, NO chicken" : ""}
+${diet === "Eggetarian" ? "- Eggetarian: Eggs allowed, NO meat, NO fish, NO chicken" : ""}
+${diet === "Non-Vegetarian" ? "- Non-Vegetarian: Include eggs, chicken, fish. ROTATE proteins - don't use same protein every day" : ""}
+${diet === "Vegan" ? "- STRICTLY Vegan: NO dairy, NO eggs, NO meat, NO fish, NO honey" : ""}
+
+DAILY REGULARS PREFERENCE (Soft Bias):
+${dailyRegulars ? `- User regularly eats: ${dailyRegulars}` : '- No specific regulars mentioned'}
+- Prefer incorporating these foods naturally
+- Change quantities, combinations, and accompanying items
+- Do NOT create exact repetitive meals
+
+PORTION SIZES (MANDATORY):
+- For EACH meal, provide detailed portion information
+- Include weight in grams AND Indian household measure
+- Format: "Rice: 150g (1 medium bowl), Dal: 120g (1 katori), Roti: 1 roti (30g atta)"
+- Be specific with measurements like: bowl, katori, cup, tablespoon, piece, slice
+
+VARIETY GENERATION:
+- Generation Seed: ${generationSeed}
+- Avoid these recently used foods: ${recentFoods.length > 0 ? recentFoods.slice(0, 10).join(", ") : "None"}
+- Create fresh variety with NEW food combinations
+
+CALORIE TARGETS:
+${goal === "Weight Loss" ? "- Weight Loss: Keep total daily calories 1400-1600 kcal" : ""}
+${goal === "Maintain Weight" ? "- Maintain Weight: Keep total daily calories 1800-2000 kcal" : ""}
+${goal === "Muscle Gain" ? "- Muscle Gain: Keep total daily calories 2200-2500 kcal with higher protein" : ""}
+
+RESPOND WITH THIS EXACT JSON STRUCTURE ONLY (add portions field):
+{
+  "day1": {
+    "breakfast": {
+      "meal": "food item description",
+      "portions": "detailed portion sizes with grams and Indian measures",
+      "calories": 300,
+      "protein": 15,
+      "carbs": 40,
+      "fat": 10
+    },
+    "lunch": {
+      "meal": "food item description",
+      "portions": "detailed portion sizes",
+      "calories": 500,
+      "protein": 25,
+      "carbs": 60,
+      "fat": 15
+    },
+    "dinner": {
+      "meal": "food item description",
+      "portions": "detailed portion sizes",
+      "calories": 400,
+      "protein": 20,
+      "carbs": 45,
+      "fat": 12
+    },
+    "snacks": {
+      "meal": "snack item description",
+      "portions": "detailed portion sizes",
+      "calories": 150,
+      "protein": 5,
+      "carbs": 20,
+      "fat": 5
+    }
+  },
+  "day2": { ... same structure ... },
+  "day3": { ... same structure ... },
+  "day4": { ... same structure ... },
+  "day5": { ... same structure ... },
+  "day6": { ... same structure ... },
+  "day7": { ... same structure ... }
+}
+
+Replace with actual diverse Indian foods. Ensure NO repetition within the week. Output ONLY the JSON object.`;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
@@ -766,8 +884,8 @@ Replace food items with actual Indian foods. Keep calories realistic for ${goal}
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 4096
+          temperature: 0.4,  // Slightly higher for more variety
+          maxOutputTokens: 8192  // Increased for longer portions field
         }
       })
     });
@@ -826,6 +944,7 @@ function validateAndRepairPlan(parsed, goal, diet) {
         if (typeof m === "object" && m.meal) {
           plan[day][meal] = {
             meal: m.meal || fallback[day][meal].meal,
+            portions: m.portions || fallback[day][meal].portions,
             calories: m.calories || fallback[day][meal].calories,
             protein: m.protein || fallback[day][meal].protein,
             carbs: m.carbs || fallback[day][meal].carbs,
@@ -834,6 +953,7 @@ function validateAndRepairPlan(parsed, goal, diet) {
         } else if (typeof m === "string") {
           plan[day][meal] = {
             meal: m,
+            portions: fallback[day][meal].portions,
             calories: fallback[day][meal].calories,
             protein: fallback[day][meal].protein,
             carbs: fallback[day][meal].carbs,
@@ -857,46 +977,158 @@ function generateFallbackPlan(goal, diet) {
 
   return {
     day1: {
-      breakfast: { meal: isWeightLoss ? "Oats with milk, 1 banana" : "Aloo Paratha with curd", calories: Math.round(350 * calMult), protein: 12, carbs: 45, fat: 10 },
-      lunch: { meal: isVeg ? "Dal, Brown rice, Mixed sabzi" : "Chicken curry, Rice, Salad", calories: Math.round(550 * calMult), protein: 22, carbs: 65, fat: 15 },
-      dinner: { meal: isVeg ? "Paneer bhurji, 2 Roti" : "Grilled fish, Roti, Salad", calories: Math.round(450 * calMult), protein: 20, carbs: 40, fat: 18 },
-      snacks: { meal: "Green tea, Roasted chana", calories: 120, protein: 8, carbs: 15, fat: 4 }
+      breakfast: {
+        meal: isWeightLoss ? "Oats with milk, 1 banana" : "Aloo Paratha with curd",
+        portions: isWeightLoss ? "Oats: 50g (½ bowl), Milk: 200ml (1 glass), Banana: 1 medium (120g)" : "Paratha: 2 pieces (60g atta each), Curd: 150g (1 katori)",
+        calories: Math.round(350 * calMult), protein: 12, carbs: 45, fat: 10
+      },
+      lunch: {
+        meal: isVeg ? "Dal, Brown rice, Mixed sabzi" : "Chicken curry, Rice, Salad",
+        portions: isVeg ? "Dal: 150g (1 katori), Rice: 150g (1 bowl), Sabzi: 125g (1 bowl)" : "Chicken: 150g (5-6 pieces), Rice: 150g (1 bowl), Salad: 100g (1 plate)",
+        calories: Math.round(550 * calMult), protein: 22, carbs: 65, fat: 15
+      },
+      dinner: {
+        meal: isVeg ? "Paneer bhurji, 2 Roti" : "Grilled fish, Roti, Salad",
+        portions: isVeg ? "Paneer bhurji: 100g (1 katori), Roti: 2 pieces (30g atta each)" : "Fish: 150g (1 piece), Roti: 2 pieces (30g atta each), Salad: 80g (1 bowl)",
+        calories: Math.round(450 * calMult), protein: 20, carbs: 40, fat: 18
+      },
+      snacks: {
+        meal: "Green tea, Roasted chana",
+        portions: "Green tea: 1 cup (200ml), Roasted chana: 30g (2 tbsp)",
+        calories: 120, protein: 8, carbs: 15, fat: 4
+      }
     },
     day2: {
-      breakfast: { meal: "Poha with peanuts, Tea", calories: Math.round(320 * calMult), protein: 10, carbs: 50, fat: 8 },
-      lunch: { meal: isVeg ? "Rajma, Rice, Cucumber salad" : "Egg curry, Rice, Raita", calories: Math.round(520 * calMult), protein: 20, carbs: 70, fat: 12 },
-      dinner: { meal: "Vegetable soup, Multigrain roti", calories: Math.round(350 * calMult), protein: 12, carbs: 45, fat: 8 },
-      snacks: { meal: "Fruits, Buttermilk", calories: 150, protein: 5, carbs: 25, fat: 3 }
+      breakfast: {
+        meal: "Poha with peanuts, Tea",
+        portions: "Poha: 150g (1 large bowl), Peanuts: 20g (1 tbsp), Tea: 1 cup",
+        calories: Math.round(320 * calMult), protein: 10, carbs: 50, fat: 8
+      },
+      lunch: {
+        meal: isVeg ? "Rajma, Rice, Cucumber salad" : "Egg curry, Rice, Raita",
+        portions: isVeg ? "Rajma: 150g (1 katori), Rice: 150g (1 bowl), Salad: 100g (1 bowl)" : "Egg curry: 2 eggs with gravy (1 katori), Rice: 150g (1 bowl), Raita: 100g (1 small bowl)",
+        calories: Math.round(520 * calMult), protein: 20, carbs: 70, fat: 12
+      },
+      dinner: {
+        meal: "Vegetable soup, Multigrain roti",
+        portions: "Soup: 250ml (1 large bowl), Roti: 2 pieces (35g atta each)",
+        calories: Math.round(350 * calMult), protein: 12, carbs: 45, fat: 8
+      },
+      snacks: {
+        meal: "Fruits, Buttermilk",
+        portions: "Seasonal fruits: 150g (1 bowl), Buttermilk: 200ml (1 glass)",
+        calories: 150, protein: 5, carbs: 25, fat: 3
+      }
     },
     day3: {
-      breakfast: { meal: "Idli sambar, Coconut chutney", calories: Math.round(380 * calMult), protein: 12, carbs: 55, fat: 10 },
-      lunch: { meal: isVeg ? "Chole, Rice, Onion salad" : "Mutton curry, Rice", calories: Math.round(580 * calMult), protein: 25, carbs: 65, fat: 18 },
-      dinner: { meal: "Khichdi with ghee, Papad", calories: Math.round(400 * calMult), protein: 15, carbs: 55, fat: 12 },
-      snacks: { meal: "Sprouts chaat", calories: 140, protein: 10, carbs: 18, fat: 3 }
+      breakfast: {
+        meal: "Idli sambar, Coconut chutney",
+        portions: "Idli: 3 pieces (medium), Sambar: 150ml (1 bowl), Chutney: 30g (2 tbsp)",
+        calories: Math.round(380 * calMult), protein: 12, carbs: 55, fat: 10
+      },
+      lunch: {
+        meal: isVeg ? "Chole, Rice, Onion salad" : "Mutton curry, Rice",
+        portions: isVeg ? "Chole: 150g (1 katori), Rice: 150g (1 bowl), Salad: 80g (1 small plate)" : "Mutton: 120g (4-5 pieces), Rice: 150g (1 bowl)",
+        calories: Math.round(580 * calMult), protein: 25, carbs: 65, fat: 18
+      },
+      dinner: {
+        meal: "Khichdi with ghee, Papad",
+        portions: "Khichdi: 200g (1 large bowl), Ghee: 1 tsp (5ml), Papad: 2 pieces",
+        calories: Math.round(400 * calMult), protein: 15, carbs: 55, fat: 12
+      },
+      snacks: {
+        meal: "Sprouts chaat",
+        portions: "Sprouts: 100g (1 bowl)",
+        calories: 140, protein: 10, carbs: 18, fat: 3
+      }
     },
     day4: {
-      breakfast: { meal: "Upma, Coffee", calories: Math.round(300 * calMult), protein: 8, carbs: 45, fat: 8 },
-      lunch: { meal: isVeg ? "Palak paneer, Roti, Salad" : "Fish fry, Rice, Dal", calories: Math.round(550 * calMult), protein: 22, carbs: 55, fat: 20 },
-      dinner: { meal: "Moong dal, Jeera rice", calories: Math.round(420 * calMult), protein: 18, carbs: 60, fat: 8 },
-      snacks: { meal: "Almonds, Green tea", calories: 180, protein: 6, carbs: 8, fat: 14 }
+      breakfast: {
+        meal: "Upma, Coffee",
+        portions: "Upma: 150g (1 bowl), Coffee: 1 cup (150ml)",
+        calories: Math.round(300 * calMult), protein: 8, carbs: 45, fat: 8
+      },
+      lunch: {
+        meal: isVeg ? "Palak paneer, Roti, Salad" : "Fish fry, Rice, Dal",
+        portions: isVeg ? "Palak paneer: 150g (1 katori), Roti: 3 pieces (30g each), Salad: 80g" : "Fish fry: 150g (2 pieces), Rice: 120g (1 bowl), Dal: 100g (1 katori)",
+        calories: Math.round(550 * calMult), protein: 22, carbs: 55, fat: 20
+      },
+      dinner: {
+        meal: "Moong dal, Jeera rice",
+        portions: "Moong dal: 150g (1 katori), Jeera rice: 150g (1 bowl)",
+        calories: Math.round(420 * calMult), protein: 18, carbs: 60, fat: 8
+      },
+      snacks: {
+        meal: "Almonds, Green tea",
+        portions: "Almonds: 10-12 pieces (20g), Green tea: 1 cup",
+        calories: 180, protein: 6, carbs: 8, fat: 14
+      }
     },
     day5: {
-      breakfast: { meal: "Besan chilla, Mint chutney", calories: Math.round(280 * calMult), protein: 14, carbs: 30, fat: 10 },
-      lunch: { meal: isVeg ? "Mix dal, Rice, Bhindi" : "Chicken tikka, Roti", calories: Math.round(520 * calMult), protein: 24, carbs: 60, fat: 14 },
-      dinner: { meal: "Vegetable pulao, Raita", calories: Math.round(450 * calMult), protein: 12, carbs: 65, fat: 12 },
-      snacks: { meal: "Banana, Roasted makhana", calories: 160, protein: 4, carbs: 30, fat: 2 }
+      breakfast: {
+        meal: "Besan chilla, Mint chutney",
+        portions: "Chilla: 2 pieces (50g besan each), Chutney: 30g (2 tbsp)",
+        calories: Math.round(280 * calMult), protein: 14, carbs: 30, fat: 10
+      },
+      lunch: {
+        meal: isVeg ? "Mix dal, Rice, Bhindi" : "Chicken tikka, Roti",
+        portions: isVeg ? "Mix dal: 150g (1 katori), Rice: 150g (1 bowl), Bhindi: 100g (1 katori)" : "Chicken tikka: 150g (6-7 pieces), Roti: 3 pieces (30g each)",
+        calories: Math.round(520 * calMult), protein: 24, carbs: 60, fat: 14
+      },
+      dinner: {
+        meal: "Vegetable pulao, Raita",
+        portions: "Pulao: 200g (1 large bowl), Raita: 100g (1 small bowl)",
+        calories: Math.round(450 * calMult), protein: 12, carbs: 65, fat: 12
+      },
+      snacks: {
+        meal: "Banana, Roasted makhana",
+        portions: "Banana: 1 medium (120g), Makhana: 30g (1 cup)",
+        calories: 160, protein: 4, carbs: 30, fat: 2
+      }
     },
     day6: {
-      breakfast: { meal: "Dosa, Sambar", calories: Math.round(350 * calMult), protein: 10, carbs: 50, fat: 12 },
-      lunch: { meal: isVeg ? "Kadhi pakora, Rice" : "Egg bhurji, Paratha", calories: Math.round(560 * calMult), protein: 18, carbs: 70, fat: 18 },
-      dinner: { meal: "Roti, Lauki sabzi, Dal", calories: Math.round(380 * calMult), protein: 16, carbs: 50, fat: 10 },
-      snacks: { meal: "Coconut water, Dates", calories: 130, protein: 2, carbs: 28, fat: 1 }
+      breakfast: {
+        meal: "Dosa, Sambar",
+        portions: "Dosa: 2 pieces (medium), Sambar: 150ml (1 bowl)",
+        calories: Math.round(350 * calMult), protein: 10, carbs: 50, fat: 12
+      },
+      lunch: {
+        meal: isVeg ? "Kadhi pakora, Rice" : "Egg bhurji, Paratha",
+        portions: isVeg ? "Kadhi: 200ml (1 bowl), Pakora: 3-4 pieces, Rice: 150g (1 bowl)" : "Egg bhurji: 3 eggs (1 katori), Paratha: 2 pieces (60g atta each)",
+        calories: Math.round(560 * calMult), protein: 18, carbs: 70, fat: 18
+      },
+      dinner: {
+        meal: "Roti, Lauki sabzi, Dal",
+        portions: "Roti: 2 pieces (30g each), Lauki: 100g (1 katori), Dal: 120g (1 katori)",
+        calories: Math.round(380 * calMult), protein: 16, carbs: 50, fat: 10
+      },
+      snacks: {
+        meal: "Coconut water, Dates",
+        portions: "Coconut water: 250ml (1 glass), Dates: 3 pieces (25g)",
+        calories: 130, protein: 2, carbs: 28, fat: 1
+      }
     },
     day7: {
-      breakfast: { meal: "Stuffed paratha, Pickle, Curd", calories: Math.round(420 * calMult), protein: 14, carbs: 55, fat: 16 },
-      lunch: { meal: isVeg ? "Paneer tikka masala, Naan" : "Biryani, Raita", calories: Math.round(620 * calMult), protein: 25, carbs: 65, fat: 25 },
-      dinner: { meal: "Light soup, Multigrain toast", calories: Math.round(280 * calMult), protein: 10, carbs: 35, fat: 8 },
-      snacks: { meal: "Mixed fruits, Herbal tea", calories: 120, protein: 2, carbs: 28, fat: 1 }
+      breakfast: {
+        meal: "Stuffed paratha, Pickle, Curd",
+        portions: "Paratha: 2 pieces (60g atta each), Curd: 120g (1 katori), Pickle: 1 tsp",
+        calories: Math.round(420 * calMult), protein: 14, carbs: 55, fat: 16
+      },
+      lunch: {
+        meal: isVeg ? "Paneer tikka masala, Naan" : "Biryani, Raita",
+        portions: isVeg ? "Paneer tikka: 150g (1 katori), Naan: 2 pieces" : "Biryani: 250g (1 large plate), Raita: 100g (1 bowl)",
+        calories: Math.round(620 * calMult), protein: 25, carbs: 65, fat: 25
+      },
+      dinner: {
+        meal: "Light soup, Multigrain toast",
+        portions: "Soup: 250ml (1 bowl), Toast: 2 slices (60g)",
+        calories: Math.round(280 * calMult), protein: 10, carbs: 35, fat: 8
+      },
+      snacks: {
+        meal: "Mixed fruits, Herbal tea",
+        portions: "Fruits: 150g (1 bowl), Herbal tea: 1 cup",
+        calories: 120, protein: 2, carbs: 28, fat: 1
+      }
     }
   };
 }
