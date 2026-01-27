@@ -11,7 +11,7 @@ import express from "express";
 import cors from "cors";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { Resend } from "resend";
+import { sendEmail } from "./utils/emailService.js";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
 import helmet from "helmet";
@@ -347,18 +347,10 @@ app.post("/auth/forgot-password", async (req, res) => {
     );
 
     // Send Email (Non-blocking)
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-    });
-
-    transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    // Send Email via Resend Utility
+    sendEmail({
       to: lowerEmail,
       subject: "Password Reset OTP - Sai Aerobics",
-      text: `Your password reset OTP is ${otp}. Valid for 10 minutes.`,
       html: `
         <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
           <h2 style="color: #6366f1;">Reset Password</h2>
@@ -368,8 +360,7 @@ app.post("/auth/forgot-password", async (req, res) => {
           <p style="color: #666; font-size: 0.9em;">If you didn't request this, ignore this email.</p>
         </div>
       `
-    }).then(() => console.log(`✅ OTP sent to ${lowerEmail}`))
-      .catch(err => console.error("❌ Failed to send OTP email:", err));
+    }).catch(err => console.error("❌ Failed to send OTP email:", err));
 
     // Respond immediately - do not wait for email
     console.log(`✅ OTP generated and saved for ${lowerEmail}`);
@@ -1180,14 +1171,9 @@ app.post("/share/email", authenticate, async (req, res) => {
       return res.status(500).json({ error: "Email service (Resend) not configured on server." });
     }
 
-    const resend = new Resend(RESEND_API_KEY);
-
-    // Use a verified domain sender or onboarding default
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-
-    const { data, error } = await resend.emails.send({
-      from: `Sai Aerobics AI <${fromEmail}>`,
-      to: email, // Resend Free Tier: ONLY sends to the account email unless domain is verified
+    // Use shared utility
+    await sendEmail({
+      to: email,
       subject: `🥗 Your ${goal} Meal Plan`,
       html: `
           <h3>Your Personalized Meal Plan</h3>
@@ -1199,12 +1185,6 @@ app.post("/share/email", authenticate, async (req, res) => {
         `
     });
 
-    if (error) {
-      console.error("❌ Resend API Error:", error);
-      return res.status(500).json({ error: "Failed to send email via Resend." });
-    }
-
-    console.log(`✅ Meal plan sent to ${email} via Resend. ID: ${data.id}`);
     res.json({ success: true, message: `Email sent to ${email}` });
 
   } catch (err) {
