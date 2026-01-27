@@ -1,4 +1,4 @@
-console.log("🔥 SERVER FILE LOADED - v2.1 🔥");
+console.log("🔥 SERVER FILE LOADED - v2.2 (CACHE BUST) 🔥");
 
 import dotenv from "dotenv";
 import path from "path";
