@@ -113,11 +113,12 @@ export default function Dashboard() {
           onClick={handleAttendance}
           disabled={isAttendanceMarked}
           style={isAttendanceMarked ? {
-            background: "var(--secondary)",
-            color: "var(--text-main)"
-          } : {
             background: "var(--primary)",
             color: "white"
+          } : {
+            background: "var(--card)",
+            color: "var(--text-main)",
+            border: "1px solid var(--secondary)"
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
@@ -136,8 +137,8 @@ export default function Dashboard() {
           onClick={() => setIsModalOpen(true)}
           disabled={isWeightLogged}
           style={isWeightLogged ? {
-            background: "var(--secondary)",
-            color: "var(--text-main)"
+            background: "var(--primary)",
+            color: "white"
           } : {
             background: "var(--card)",
             color: "var(--text-main)",
