@@ -19,6 +19,8 @@ import xss from "xss-clean";
 import hpp from "hpp";
 import compression from "compression";
 
+
+
 import cron from "node-cron";
 import { initPool, pool, testDB } from "./db.js";
 
@@ -235,44 +237,37 @@ app.get("/auth/google/callback", (req, res, next) => {
 
 
 // SHARE: Email Meal Plan
+import { sendEmail } from "./utils/emailService.js";
+
 app.post("/share/email", authenticate, async (req, res) => {
   try {
     const { planHtml, goal } = req.body;
 
-    // Get user email
-    const userResult = await pool.query("SELECT email FROM users WHERE id=$1", [req.user.id]);
+    const userResult = await pool.query(
+      "SELECT email FROM users WHERE id=$1",
+      [req.user.id]
+    );
+
     if (userResult.rowCount === 0) {
       return res.status(404).json({ error: "User not found" });
     }
+
     const userEmail = userResult.rows[0].email;
 
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-      console.error("Email credentials not configured");
-      return res.status(500).json({ error: "Email service not configured" });
-    }
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    await sendEmail({
       to: userEmail,
       subject: `Your ${goal || "Weekly"} Meal Plan - Sai Aerobics 🥗`,
       html: planHtml
     });
 
     console.log(`✅ Meal plan email sent to ${userEmail}`);
-    res.json({ success: true, message: "Meal plan sent to your email!" });
+    res.json({ success: true });
   } catch (err) {
-    console.error("Email Share Error:", err.message);
-    res.status(500).json({ error: "Failed to send email. Please try again." });
+    console.error("❌ Resend Email Error:", err);
+    res.status(500).json({ error: "Failed to send email" });
   }
 });
+
 
 // AUTH: Register (Allowed for public signup)
 app.post("/auth/register", async (req, res) => {
@@ -1158,40 +1153,8 @@ app.post("/payments/verify", authenticate, async (req, res) => {
 });
 
 // EMAIL: Share Plan
-app.post("/share/email", authenticate, async (req, res) => {
-  try {
-    const { planHtml, goal } = req.body; // Expecting formatted HTML table or text from frontend
 
-    const user = await pool.query("SELECT email FROM users WHERE id=$1", [req.user.id]);
-    const email = user.rows[0]?.email;
 
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
-
-    if (!RESEND_API_KEY) {
-      return res.status(500).json({ error: "Email service (Resend) not configured on server." });
-    }
-
-    // Use shared utility
-    await sendEmail({
-      to: email,
-      subject: `🥗 Your ${goal} Meal Plan`,
-      html: `
-          <h3>Your Personalized Meal Plan</h3>
-          <p>Goal: ${goal}</p>
-          <hr/>
-          ${planHtml}
-          <br/>
-          <p>Stay healthy!<br/>- Sai Aerobics Team</p>
-        `
-    });
-
-    res.json({ success: true, message: `Email sent to ${email}` });
-
-  } catch (err) {
-    console.error("Email Share Error:", err);
-    res.status(500).json({ error: "Failed to send email." });
-  }
-});
 
 
 
@@ -1546,7 +1509,7 @@ cron.schedule("0 9 * * *", async () => {
 
 async function checkMembershipExpiry() {
   try {
-    if (!process.env.EMAIL_USER) return;
+    if (!process.env.RESEND_API_KEY) return;
 
     // 7 Days Left
     const sevenDays = await pool.query(
@@ -1569,11 +1532,6 @@ async function checkMembershipExpiry() {
 }
 
 async function sendExpiryEmail(email, name, days) {
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-  });
-
   const subject = days === 7
     ? "Reminder: Membership Expiring in 7 Days ⏳"
     : "Urgent: Membership Expiring in 3 Days! ⚠️";
@@ -1591,7 +1549,7 @@ async function sendExpiryEmail(email, name, days) {
     `;
 
   try {
-    await transporter.sendMail({ from: process.env.EMAIL_USER, to: email, subject, html });
+    await sendEmail({ to: email, subject, html });
     console.log(`📧 Sent ${days}-day expiry alert to ${email}`);
   } catch (e) {
     console.error(`Failed to send email to ${email}:`, e);
