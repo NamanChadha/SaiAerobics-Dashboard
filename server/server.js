@@ -781,30 +781,62 @@ app.post("/nutrition-plan", authenticate, async (req, res) => {
       console.error("Failed to fetch recent plans (non-fatal):", e.message);
     }
 
-    const prompt = `You are a nutrition API. Respond with ONLY valid JSON. No markdown. No comments. No extra text.
+    const prompt = `You are a professional clinical nutritionist and meal-planning AI used in a production SaaS app.
 
-Create a 7-day ${diet || "Vegetarian"} Indian meal plan with calories and macros.
-User: ${userName}, Weight: ${weight}kg, Height: ${height}, Goal: ${goal}
+You MUST generate distinct meal plans every time this prompt is called, even if user inputs are similar.
+
+⚠️ CRITICAL RULES (NON-NEGOTIABLE):
+
+You are NOT allowed to reuse meals, food combinations, or daily structures from previous responses.
+
+Treat each request as sampling from a large solution space — never converge to a "default" plan.
+
+Small input changes (goal, diet, allergies, height, weight, seed) MUST significantly affect output.
+
+INPUT VARIABLES (STRICTLY ENFORCE):
+
+Weight: ${weight} kg
+Height: ${height} cm
+Goal: ${goal}
+Diet Type: ${diet}
 Allergies: ${allergies || "None"}
-Daily items user regularly consumes: ${dailyRegulars || "None"}
+Daily Regulars: ${dailyRegulars || "None"}
+Generation Seed: ${generationSeed}
 
-STRICT RULES FOR VARIETY (MANDATORY):
-1. NO breakfast should repeat across the 7 days (each day must have DIFFERENT breakfast)
-2. NO lunch should repeat across the 7 days (each day must have DIFFERENT lunch)
-3. NO dinner should repeat across the 7 days (each day must have DIFFERENT dinner)
-4. Same dal maximum 2 times per week
-5. Same vegetable maximum 2 times per week
-6. Same protein source maximum 3 times per week
-7. For non-veg: rotate proteins (chicken one day, fish another, eggs another) - NOT same protein every day
-8. Paneer maximum 2-3 times per week
+RANDOMIZATION & VARIATION RULES (MANDATORY):
 
-ALLERGIES - BLACKLIST (MANDATORY):
+Use the Generation Seed to:
+- Randomize ingredient selection
+- Randomize cuisine (Indian, Mediterranean, Asian, Continental, etc.)
+- Randomize meal timing and composition
+- Two responses with different seeds must never be structurally identical
+
+STRUCTURAL CONSTRAINTS:
+
+- Generate a 7-day plan
+- Each day MUST be unique
+- Each meal MUST differ across days
+- Meals must be realistic, culturally relevant, and diet-compliant
+
+NUTRITION LOGIC:
+
+Calories and macros MUST match the user's goal:
+${goal === "Weight Loss" ? "- Weight Loss → Calorie deficit (1400-1600 kcal/day)" : ""}
+${goal === "Maintain Weight" ? "- Maintain Weight → Maintenance calories (1800-2000 kcal/day)" : ""}
+${goal === "Muscle Gain" ? "- Muscle Gain → Calorie surplus with high protein (2200-2500 kcal/day)" : ""}
+
+- Protein distribution must vary daily
+- Avoid repeating staple foods more than twice per week
+
+ALLERGY & DIET ENFORCEMENT:
+
+Absolutely ZERO tolerance for allergens:
 ${allergies ? `- User is allergic to: ${allergies}` : '- No allergies'}
 - Do NOT include these ingredients in ANY form (including oils, derivatives, traces)
 - Example: If peanut allergy, avoid peanuts, peanut oil, groundnut chutney
 - Example: If dairy allergy, avoid milk, paneer, curd, ghee, butter
 
-DIET TYPE ENFORCEMENT (MANDATORY):
+Strictly follow diet type:
 ${diet === "Vegetarian" ? "- STRICTLY Vegetarian: NO eggs, NO meat, NO fish, NO chicken" : ""}
 ${diet === "Eggetarian" ? "- Eggetarian: Eggs allowed, NO meat, NO fish, NO chicken" : ""}
 ${diet === "Non-Vegetarian" ? "- Non-Vegetarian: Include eggs, chicken, fish. ROTATE proteins - don't use same protein every day" : ""}
@@ -823,49 +855,54 @@ PORTION SIZES (MANDATORY):
 - Be specific with measurements like: bowl, katori, cup, tablespoon, piece, slice
 
 VARIETY GENERATION:
-- Generation Seed: ${generationSeed}
 - Avoid these recently used foods: ${recentFoods.length > 0 ? recentFoods.slice(0, 10).join(", ") : "None"}
 - Create fresh variety with NEW food combinations
+- Use the seed (${generationSeed}) to ensure randomness
 
-CALORIE TARGETS:
-${goal === "Weight Loss" ? "- Weight Loss: Keep total daily calories 1400-1600 kcal" : ""}
-${goal === "Maintain Weight" ? "- Maintain Weight: Keep total daily calories 1800-2000 kcal" : ""}
-${goal === "Muscle Gain" ? "- Muscle Gain: Keep total daily calories 2200-2500 kcal with higher protein" : ""}
+STRICT NO-REPETITION RULES:
+1. NO breakfast should repeat across the 7 days
+2. NO lunch should repeat across the 7 days
+3. NO dinner should repeat across the 7 days
+4. Same dal maximum 2 times per week
+5. Same vegetable maximum 2 times per week
+6. Same protein source maximum 3 times per week
+7. For non-veg: rotate proteins (chicken one day, fish another, eggs another)
+8. Paneer maximum 2-3 times per week
 
-RESPOND WITH THIS EXACT JSON STRUCTURE ONLY (add portions field):
+OUTPUT FORMAT (STRICT JSON ONLY):
 {
   "day1": {
     "breakfast": {
       "meal": "food item description",
       "portions": "detailed portion sizes with grams and Indian measures",
-      "calories": 300,
-      "protein": 15,
-      "carbs": 40,
-      "fat": 10
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
     },
     "lunch": {
       "meal": "food item description",
       "portions": "detailed portion sizes",
-      "calories": 500,
-      "protein": 25,
-      "carbs": 60,
-      "fat": 15
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
     },
     "dinner": {
       "meal": "food item description",
       "portions": "detailed portion sizes",
-      "calories": 400,
-      "protein": 20,
-      "carbs": 45,
-      "fat": 12
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
     },
     "snacks": {
       "meal": "snack item description",
       "portions": "detailed portion sizes",
-      "calories": 150,
-      "protein": 5,
-      "carbs": 20,
-      "fat": 5
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fat": number
     }
   },
   "day2": { ... same structure ... },
@@ -876,7 +913,12 @@ RESPOND WITH THIS EXACT JSON STRUCTURE ONLY (add portions field):
   "day7": { ... same structure ... }
 }
 
-Replace with actual diverse Indian foods. Ensure NO repetition within the week. Output ONLY the JSON object.`;
+❌ No explanations
+❌ No repeated meals
+❌ No generic plans
+❌ No markdown
+
+Replace with actual diverse foods. Ensure NO repetition within the week. Output ONLY the JSON object.`;
 
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`, {
       method: "POST",
@@ -884,7 +926,7 @@ Replace with actual diverse Indian foods. Ensure NO repetition within the week. 
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.4,  // Slightly higher for more variety
+          temperature: 0.7,  // Increased for more variety and creativity
           maxOutputTokens: 8192  // Increased for longer portions field
         }
       })

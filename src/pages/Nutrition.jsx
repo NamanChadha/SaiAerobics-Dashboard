@@ -2,9 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "../styles/dashboard.css";
 import { generateMealPlan, shareMealPlanEmail, getDashboardData } from "../api";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import PaymentModal from "../components/PaymentModal";
+import {
+  normalizeHeight,
+  validateWeight,
+  sanitizeMacros,
+  generateMealPlanSeed,
+  generatePDF,
+  generateEmailHTML
+} from "../utils/nutritionHelpers";
 
 export default function Nutrition() {
   const navigate = useNavigate();
@@ -18,8 +24,11 @@ export default function Nutrition() {
   });
 
   const [generatedPlan, setGeneratedPlan] = useState(null);
+  const [planSeed, setPlanSeed] = useState(null); // Store seed for consistency
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [shareMsg, setShareMsg] = useState("");
+  const [isEmailSending, setIsEmailSending] = useState(false); // Prevent email spam
+  const [validationErrors, setValidationErrors] = useState({}); // Track validation errors
   const [isPaidMember, setIsPaidMember] = useState(null); // null = loading
   const [checkingSubscription, setCheckingSubscription] = useState(true);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -46,31 +55,55 @@ export default function Nutrition() {
   }, []);
 
   const handleGeneratePlan = async () => {
-    if (!formData.weight || !formData.height) {
-      alert("Please enter your weight and height.");
+    // Clear previous errors
+    setValidationErrors({});
+
+    // Validate weight
+    const weightValidation = validateWeight(formData.weight);
+    if (!weightValidation.valid) {
+      setValidationErrors(prev => ({ ...prev, weight: weightValidation.error }));
+      alert(weightValidation.error);
+      return;
+    }
+
+    // Validate and normalize height
+    const heightValidation = normalizeHeight(formData.height);
+    if (!heightValidation.valid) {
+      setValidationErrors(prev => ({ ...prev, height: heightValidation.error }));
+      alert(heightValidation.error);
       return;
     }
 
     setLoadingPlan(true);
     setGeneratedPlan(null);
+    setPlanSeed(null);
     setShareMsg("");
 
     try {
-      // Add generation seed for variety
+      // Generate stable seed for this plan
+      const seed = generateMealPlanSeed();
+
+      // Prepare request with normalized height (in cm)
       const requestData = {
         ...formData,
-        seed: Date.now()
+        height: heightValidation.value, // Use normalized height in cm
+        weight: weightValidation.value,
+        seed
       };
 
       const res = await generateMealPlan(requestData);
 
+      // Handle subscription requirement
       if (res.error === "SUBSCRIPTION_REQUIRED") {
         setIsPaidMember(false);
+        setShowPaymentModal(true); // Auto-open payment modal
+        alert("⚠️ This feature requires a premium subscription. Please upgrade to continue.");
         return;
       }
 
       if (res.success && res.plan) {
         setGeneratedPlan(res.plan);
+        setPlanSeed(seed); // Store seed for PDF and email consistency
       } else {
         throw new Error(res.error || "Failed to generate plan");
       }
@@ -88,10 +121,10 @@ export default function Nutrition() {
   const mealLabels = { breakfast: "Breakfast", lunch: "Lunch", dinner: "Dinner", snacks: "Snacks" };
 
   const getMealData = (dayPlan, mealType) => {
-    if (!dayPlan || !dayPlan[mealType]) return { meal: "-", calories: 0, protein: 0, carbs: 0, fat: 0 };
-    const m = dayPlan[mealType];
-    if (typeof m === "object") return m;
-    return { meal: m, calories: 0, protein: 0, carbs: 0, fat: 0 };
+    if (!dayPlan || !dayPlan[mealType]) {
+      return sanitizeMacros(null);
+    }
+    return sanitizeMacros(dayPlan[mealType]);
   };
 
   const getDayTotals = (dayPlan) => {
@@ -110,73 +143,7 @@ export default function Nutrition() {
     if (!generatedPlan) return;
 
     try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-
-      doc.setFillColor(232, 93, 117);
-      doc.rect(0, 0, pageWidth, 40, "F");
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont("helvetica", "bold");
-      doc.text("Sai Aerobics", pageWidth / 2, 18, { align: "center" });
-
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-      doc.text(`7-Day ${formData.goal} Meal Plan`, pageWidth / 2, 28, { align: "center" });
-      doc.text(`Diet: ${formData.diet} | ${new Date().toLocaleDateString()}`, pageWidth / 2, 35, { align: "center" });
-
-      doc.setTextColor(0, 0, 0);
-
-      const tableBody = [];
-      days.forEach((day, idx) => {
-        const dayPlan = generatedPlan[day] || {};
-        const totals = getDayTotals(dayPlan);
-
-        mealTypes.forEach((mealType, mealIdx) => {
-          const m = getMealData(dayPlan, mealType);
-          const foodWithPortions = m.portions ? `${m.meal}\n${m.portions}` : m.meal || "-";
-          const row = [
-            mealIdx === 0 ? dayNames[idx] : "",
-            mealLabels[mealType],
-            foodWithPortions,
-            m.calories || "-",
-            `P:${m.protein || 0}g C:${m.carbs || 0}g F:${m.fat || 0}g`
-          ];
-          tableBody.push(row);
-        });
-
-        tableBody.push([
-          "",
-          { content: "Day Total", styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
-          "",
-          { content: `${totals.calories} kcal`, styles: { fontStyle: "bold", fillColor: [240, 240, 240] } },
-          { content: `P:${totals.protein}g C:${totals.carbs}g F:${totals.fat}g`, styles: { fontStyle: "bold", fillColor: [240, 240, 240] } }
-        ]);
-      });
-
-      autoTable(doc, {
-        head: [["Day", "Meal", "Food Item", "Calories", "Macros"]],
-        body: tableBody,
-        startY: 50,
-        styles: { fontSize: 8, cellPadding: 3 },
-        headStyles: { fillColor: [232, 93, 117], textColor: [255, 255, 255], fontStyle: "bold" },
-        columnStyles: {
-          0: { cellWidth: 22, fontStyle: "bold" },
-          1: { cellWidth: 20 },
-          2: { cellWidth: 70 },
-          3: { cellWidth: 20 },
-          4: { cellWidth: 45 }
-        }
-      });
-
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text("Generated by Sai Aerobics - Stay healthy!", pageWidth / 2, finalY, { align: "center" });
-
-      const fileName = `SaiAerobics_${formData.goal.replace(/\s+/g, "_")}_MealPlan.pdf`;
-      doc.save(fileName);
+      generatePDF(generatedPlan, formData);
     } catch (err) {
       console.error("PDF Error:", err);
       alert("Failed to generate PDF. Please try again.");
@@ -185,55 +152,22 @@ export default function Nutrition() {
 
   const handleEmailPlan = async () => {
     if (!generatedPlan) return;
+
+    // Prevent spam - disable if already sending
+    if (isEmailSending) return;
+
+    setIsEmailSending(true);
     setShareMsg("Sending email...");
 
     try {
-      let html = `
-        <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
-          <div style="background: linear-gradient(135deg, #E85D75, #f687a5); padding: 25px; text-align: center; border-radius: 12px 12px 0 0;">
-            <h1 style="color: white; margin: 0; font-size: 24px;">Sai Aerobics</h1>
-            <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0 0;">Your 7-Day ${formData.goal} Meal Plan</p>
-          </div>
-          <div style="padding: 20px; background: #f9fafb;">
-            <p style="margin: 0 0 15px 0;"><strong>Diet:</strong> ${formData.diet}</p>
-      `;
-
-      days.forEach((day, idx) => {
-        const dayPlan = generatedPlan[day] || {};
-        const totals = getDayTotals(dayPlan);
-
-        html += `
-          <div style="background: white; border-radius: 10px; padding: 15px; margin-bottom: 12px; border-left: 4px solid #E85D75;">
-            <h3 style="margin: 0 0 10px 0; color: #E85D75;">${dayNames[idx]} <span style="font-size: 12px; color: #666; font-weight: normal;">(${totals.calories} kcal)</span></h3>
-        `;
-
-        mealTypes.forEach(mealType => {
-          const m = getMealData(dayPlan, mealType);
-          html += `
-            <div style="margin: 8px 0; padding: 8px; background: #f9fafb; border-radius: 6px;">
-              <strong style="color: #E85D75;">${mealLabels[mealType]}:</strong> ${m.meal}
-              ${m.portions ? `<br/><span style="color: #888; font-size: 11px;">📏 ${m.portions}</span>` : ''}
-              <span style="color: #666; font-size: 12px; display: block; margin-top: 4px;">${m.calories} kcal | P:${m.protein}g C:${m.carbs}g F:${m.fat}g</span>
-            </div>
-          `;
-        });
-
-        html += `</div>`;
-      });
-
-      html += `
-          </div>
-          <div style="text-align: center; padding: 20px; background: #E85D75; border-radius: 0 0 12px 12px;">
-            <p style="color: white; margin: 0;">Stay healthy! 💪 - Sai Aerobics Team</p>
-          </div>
-        </div>
-      `;
-
+      const html = generateEmailHTML(generatedPlan, formData);
       await shareMealPlanEmail(html, formData.goal);
       setShareMsg("✅ Email sent successfully!");
     } catch (err) {
       console.error("Email error:", err);
       setShareMsg("❌ Failed to send email. Please try again.");
+    } finally {
+      setIsEmailSending(false);
     }
   };
 
@@ -369,11 +303,41 @@ export default function Nutrition() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginTop: "20px" }}>
                 <div>
                   <label className="modern-label">Weight (kg) *</label>
-                  <input type="number" className="modern-input" placeholder="e.g. 65" value={formData.weight} onChange={e => setFormData({ ...formData, weight: e.target.value })} />
+                  <input
+                    type="number"
+                    className="modern-input"
+                    placeholder="e.g. 65"
+                    value={formData.weight}
+                    onChange={e => {
+                      setFormData({ ...formData, weight: e.target.value });
+                      setValidationErrors(prev => ({ ...prev, weight: null }));
+                    }}
+                    style={validationErrors.weight ? { borderColor: '#ef4444' } : {}}
+                  />
+                  {validationErrors.weight && (
+                    <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', marginBottom: 0 }}>
+                      {validationErrors.weight}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="modern-label">Height (cm or ft) *</label>
-                  <input type="text" className="modern-input" placeholder="e.g. 165 or 5'5" value={formData.height} onChange={e => setFormData({ ...formData, height: e.target.value })} />
+                  <input
+                    type="text"
+                    className="modern-input"
+                    placeholder="e.g. 165 or 5'5"
+                    value={formData.height}
+                    onChange={e => {
+                      setFormData({ ...formData, height: e.target.value });
+                      setValidationErrors(prev => ({ ...prev, height: null }));
+                    }}
+                    style={validationErrors.height ? { borderColor: '#ef4444' } : {}}
+                  />
+                  {validationErrors.height && (
+                    <p style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', marginBottom: 0 }}>
+                      {validationErrors.height}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -435,8 +399,23 @@ export default function Nutrition() {
                 <button onClick={downloadPDF} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: "var(--primary)", color: "white", cursor: "pointer", fontWeight: "600", fontSize: "0.95rem" }}>
                   📄 Download PDF
                 </button>
-                <button onClick={handleEmailPlan} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: "#10b981", color: "white", cursor: "pointer", fontWeight: "600", fontSize: "0.95rem" }}>
-                  📧 Email Me
+                <button
+                  onClick={handleEmailPlan}
+                  disabled={isEmailSending}
+                  style={{
+                    flex: 1,
+                    padding: "14px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: isEmailSending ? "#9ca3af" : "#10b981",
+                    color: "white",
+                    cursor: isEmailSending ? "not-allowed" : "pointer",
+                    fontWeight: "600",
+                    fontSize: "0.95rem",
+                    opacity: isEmailSending ? 0.6 : 1
+                  }}
+                >
+                  {isEmailSending ? "📧 Sending..." : "📧 Email Me"}
                 </button>
               </div>
 
