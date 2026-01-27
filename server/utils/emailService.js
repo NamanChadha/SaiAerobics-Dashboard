@@ -16,9 +16,10 @@ export async function sendEmail({ to, subject, html }) {
         throw new Error("Resend API Key missing");
     }
 
-    // Use configured sender or fallback to onboarding
-    // Note: Onboarding only works if 'to' is also the account owner email
-    const from = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
+    // Use configured sender or verified domain default
+    // Resend Default: "Sai Aerobics <no-reply@mail.saiaerobics.in>"
+    // This removes the "testing only" restriction.
+    const from = process.env.EMAIL_FROM || "no-reply@mail.saiaerobics.in";
 
     try {
         const { data, error } = await resend.emails.send({
